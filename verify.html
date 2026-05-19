@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html class="light" lang="id">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Verifikasi Pengajuan Beasiswa - PT AVIA AVIAN TBK</title>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#006837", // Avian Green
+                        "avian-green": "#006837",
+                        "avian-dark": "#333333", // Dark gray/charcoal for sidebar
+                        "avian-hover": "#4a4a4a", // Slightly lighter for sidebar hover
+                        "background-light": "#f1f1f1",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.375rem",
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+        .sidebar-expanded {
+            width: 16rem;
+        }
+        .sidebar-collapsed {
+            width: 0rem;
+        }
+        .sidebar-text {
+             white-space: nowrap;
+        }
+        .sidebar-transition {
+            transition: width 0.3s ease-in-out;
+        }
+    </style>
+    <script>
+        // Store selected correction target internally to show contextual messages
+        let activeCorrectionTarget = '';
+        let pendingAction = ''; // 'approve' | 'reject' | 'correction'
+        let selectedCorrectionType = '';
+        let isSigned = true; // default true for Done or Koreksi, false for Belum Verified
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('w-64')) {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-0');
+                sidebar.classList.add('overflow-hidden');
+            } else {
+                sidebar.classList.remove('w-0');
+                sidebar.classList.remove('overflow-hidden');
+                sidebar.classList.add('w-64');
+            }
+        }
+
+        // Action Handlers
+        function openConfirmModal(action, target = '') {
+            if (action === 'approve' && !target && !isSigned) {
+                // If they haven't signed yet, force drawing the e-signature first
+                openSignatureModal();
+                return;
+            }
+
+            pendingAction = action;
+            activeCorrectionTarget = target;
+            
+            const titleEl = document.getElementById('confirm-modal-title');
+            const descEl = document.getElementById('confirm-modal-desc');
+            const confirmBtn = document.getElementById('confirm-modal-submit');
+            
+            // Format buttons
+            confirmBtn.className = "px-4 py-2 text-white rounded text-sm font-semibold shadow-sm transition-colors ";
+            
+            if (action === 'approve') {
+                titleEl.innerText = "Konfirmasi Persetujuan";
+                descEl.innerText = target 
+                    ? `Apakah Anda yakin ingin menyetujui dokumen ${target}?`
+                    : "Apakah Anda yakin ingin menyetujui (Approve) seluruh pengajuan beasiswa ini?";
+                confirmBtn.innerText = "Ya, Setujui";
+                confirmBtn.classList.add("bg-emerald-600", "hover:bg-emerald-700");
+                
+                document.getElementById('confirm-modal').classList.remove('hidden');
+            } else if (action === 'reject') {
+                titleEl.innerText = "Konfirmasi Penolakan";
+                descEl.innerText = "Apakah Anda yakin ingin menolak (Reject) pengajuan beasiswa ini?";
+                confirmBtn.innerText = "Ya, Tolak";
+                confirmBtn.classList.add("bg-red-600", "hover:bg-red-700");
+                
+                document.getElementById('confirm-modal').classList.remove('hidden');
+            } else if (action === 'correction') {
+                // If Correction, open Selection Modal first
+                openCorrectionSelectionModal(target);
+            }
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+        }
+
+        // Correction Selection Modal
+        function openCorrectionSelectionModal(target = '') {
+            activeCorrectionTarget = target;
+            
+            // Auto-check based on where it was clicked
+            if (target === 'raport') {
+                document.getElementById('corr-raport').checked = true;
+            } else if (target === 'ranking') {
+                document.getElementById('corr-ranking').checked = true;
+            } else {
+                document.getElementById('corr-kk').checked = true;
+            }
+            
+            document.getElementById('correction-selection-modal').classList.remove('hidden');
+        }
+
+        function closeCorrectionSelectionModal() {
+            document.getElementById('correction-selection-modal').classList.add('hidden');
+        }
+
+        function submitCorrectionSelection() {
+            // Get selected correction type
+            if (document.getElementById('corr-kk').checked) {
+                selectedCorrectionType = "KOREKSI KK";
+            } else if (document.getElementById('corr-raport').checked) {
+                selectedCorrectionType = "KOREKSI RAPORT";
+            } else if (document.getElementById('corr-ranking').checked) {
+                selectedCorrectionType = "KOREKSI DOKUMEN RANKING";
+            }
+            
+            closeCorrectionSelectionModal();
+            
+            // Move to final double confirmation modal
+            const titleEl = document.getElementById('confirm-modal-title');
+            const descEl = document.getElementById('confirm-modal-desc');
+            const confirmBtn = document.getElementById('confirm-modal-submit');
+            
+            confirmBtn.className = "px-4 py-2 text-white rounded text-sm font-semibold shadow-sm transition-colors ";
+            
+            titleEl.innerText = "Konfirmasi Koreksi";
+            descEl.innerText = `Apakah Anda yakin ingin memproses status menjadi Koreksi dengan jenis: "${selectedCorrectionType}"?`;
+            confirmBtn.innerText = "Ya, Kirim Koreksi";
+            confirmBtn.classList.add("bg-amber-500", "hover:bg-amber-600", "text-gray-900");
+            
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+
+        // Final Confirm Process
+        function handleFinalSubmit() {
+            closeConfirmModal();
+            const toast = document.getElementById('toast-success');
+            const toastMsg = document.getElementById('toast-message');
+            
+            if (pendingAction === 'approve') {
+                toastMsg.innerText = activeCorrectionTarget 
+                    ? `Dokumen ${activeCorrectionTarget} berhasil disetujui!`
+                    : "Pengajuan beasiswa berhasil disetujui (Done)!";
+                toast.className = "fixed top-4 right-4 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+            } else if (pendingAction === 'reject') {
+                toastMsg.innerText = "Pengajuan beasiswa berhasil ditolak (Rejected)!";
+                toast.className = "fixed top-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+            } else if (pendingAction === 'correction') {
+                toastMsg.innerText = `Status pengajuan berhasil diubah menjadi Koreksi (${selectedCorrectionType})!`;
+                toast.className = "fixed top-4 right-4 bg-amber-500 text-gray-900 px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+            }
+            
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
+        }
+
+        // Canvas E-Signature logic
+        let canvas, ctx, drawing = false;
+
+        function initCanvas() {
+            canvas = document.getElementById('signature-canvas');
+            if (!canvas) return;
+            ctx = canvas.getContext('2d');
+            
+            // Adjust sizes properly
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            // Drawing stroke setups
+            ctx.strokeStyle = '#111418';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            // Mouse drawing
+            canvas.addEventListener('mousedown', (e) => {
+                drawing = true;
+                ctx.beginPath();
+                const rect = canvas.getBoundingClientRect();
+                ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            });
+            canvas.addEventListener('mousemove', (e) => {
+                if (!drawing) return;
+                const rect = canvas.getBoundingClientRect();
+                ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+                ctx.stroke();
+            });
+            canvas.addEventListener('mouseup', () => drawing = false);
+            canvas.addEventListener('mouseleave', () => drawing = false);
+            
+            // Touch drawing
+            canvas.addEventListener('touchstart', (e) => {
+                drawing = true;
+                ctx.beginPath();
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                e.preventDefault();
+            });
+            canvas.addEventListener('touchmove', (e) => {
+                if (!drawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                ctx.stroke();
+                e.preventDefault();
+            });
+            canvas.addEventListener('touchend', () => drawing = false);
+        }
+
+        function openSignatureModal() {
+            document.getElementById('signature-modal').classList.remove('hidden');
+            setTimeout(initCanvas, 100);
+        }
+
+        function closeSignatureModal() {
+            document.getElementById('signature-modal').classList.add('hidden');
+        }
+
+        function clearSignature() {
+            if (ctx && canvas) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function saveSignature() {
+            if (!canvas) return;
+            const dataUrl = canvas.toDataURL();
+            
+            document.getElementById('sign-here-btn').classList.add('hidden');
+            const img = document.getElementById('drawn-signature-img');
+            img.src = dataUrl;
+            img.classList.remove('hidden');
+            
+            isSigned = true;
+            closeSignatureModal();
+            
+            // Initiate approval final confirmation modal
+            openConfirmModal('approve');
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            
+            // Populate fields
+            document.getElementById('nik').value = params.get('nik') || '12345';
+            document.getElementById('karyawan').value = params.get('karyawan') || 'Budi Santoso';
+            document.getElementById('bagian').value = params.get('bagian') || 'Production';
+            document.getElementById('site').value = params.get('site') || 'AA PUSAT';
+            document.getElementById('tahun-pengajuan').value = params.get('tahun') || '2025';
+            
+            // Handle Empty Signature state for Belum Verified status
+            const status = params.get('status') || '';
+            if (status === 'Belum Verified') {
+                isSigned = false;
+                document.getElementById('default-signature').classList.add('hidden');
+                document.getElementById('sign-here-btn').classList.remove('hidden');
+            }
+            
+            // Build dynamic row
+            const tbody = document.getElementById('children-table-body');
+            const rowHtml = `
+                <tr class="bg-white dark:bg-gray-800">
+                    <td class="px-4 py-3 font-semibold text-[#111418] dark:text-white">${params.get('anak') || 'Sarah Santoso'}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300">2025/2026</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300 uppercase">${params.get('jenjang') || 'SMA'}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300 capitalize">${params.get('semester') || 'Ganjil'}</td>
+                    <td class="px-4 py-3 text-gray-600 dark:text-gray-300">Peringkat ${params.get('peringkat') || '1'}</td>
+                    <td class="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">Rp 1.800.000</td>
+                </tr>
+            `;
+            tbody.innerHTML = rowHtml;
+        });
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#111418] dark:text-white overflow-hidden">
+<div class="flex flex-col h-screen w-full">
+<header class="h-14 bg-avian-green text-white flex items-center justify-between px-4 shrink-0 z-30 shadow-md relative">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 min-w-[200px]">
+<span class="material-symbols-outlined text-white text-3xl fill-1" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+<span class="text-white font-bold text-xl tracking-tight">Avian HRMS</span>
+</div>
+<button class="text-white hover:bg-white/10 rounded-full p-1 transition-colors" onclick="toggleSidebar()">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-white hover:bg-white/10 rounded-full p-1 transition-colors" title="Home" onclick="window.location.href='index.html'">
+<span class="material-symbols-outlined">home</span>
+</button>
+<div class="flex items-center gap-3 border-l border-white/20 pl-4">
+<span class="text-sm font-semibold text-white hidden sm:block">M. FAHMI MUSTOFA</span>
+<div class="size-8 rounded-full bg-white/20 text-white flex items-center justify-center overflow-hidden border border-white/30">
+<span class="material-symbols-outlined text-xl">person</span>
+</div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<aside class="flex flex-col w-64 h-full bg-avian-dark text-white shrink-0 sidebar-transition group overflow-y-auto" id="sidebar">
+<div class="py-4">
+<nav class="flex flex-col w-full">
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover transition-colors whitespace-nowrap" href="index.html">
+<span class="material-symbols-outlined text-white text-[20px]">home</span>
+<span class="text-sm font-medium sidebar-text">Home</span>
+</a>
+<div class="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Main Menu</div>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="index.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">dashboard</span>
+<span class="text-sm font-medium sidebar-text">Main Menu</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="master-beasiswa.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
+<span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
+</a>
+</nav>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark relative">
+<div class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+<div class="max-w-[1200px] mx-auto flex flex-col gap-6 pb-12">
+<div class="flex items-center text-sm text-gray-500 mb-2">
+<a href="index.html" class="hover:text-avian-green">Dashboard</a>
+<span class="mx-2">›</span>
+<span>Beasiswa</span>
+<span class="mx-2">›</span>
+<span class="text-avian-green font-medium">Verifikasi Pengajuan</span>
+</div>
+<div class="flex flex-col gap-1 pb-2">
+<h1 class="text-[#111418] dark:text-white text-2xl md:text-3xl font-bold leading-tight tracking-tight">Verifikasi Pengajuan Tunjangan Beasiswa Anak</h1>
+<p class="text-gray-500 text-sm">Halaman peninjauan dan verifikasi dokumen beasiswa oleh pihak HR.</p>
+</div>
+
+<!-- Site and Year Fields (Disabled) -->
+<div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+<label class="flex flex-col gap-1.5 opacity-80">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Site</span>
+<input id="site" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text"/>
+</label>
+<label class="flex flex-col gap-1.5 opacity-80">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Tahun Pengajuan</span>
+<input id="tahun-pengajuan" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text"/>
+</label>
+</div>
+
+<!-- Employee Card (Disabled) -->
+<div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+<div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a2634]">
+<h2 class="text-[#111418] dark:text-white text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-avian-green">badge</span>
+                                    Data Karyawan
+                                </h2>
+</div>
+<div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+<label class="flex flex-col gap-1.5">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">NIK</span>
+<input id="nik" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text"/>
+</label>
+<label class="flex flex-col gap-1.5">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Nama Karyawan</span>
+<input id="karyawan" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text"/>
+</label>
+<label class="flex flex-col gap-1.5 md:col-span-2">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Bagian / Departemen</span>
+<input id="bagian" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text"/>
+</label>
+</div>
+</div>
+
+<!-- Children Table Card -->
+<div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+<div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a2634]">
+<h2 class="text-[#111418] dark:text-white text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-avian-green">school</span>
+                                    Detail Pengajuan Beasiswa Anak
+                                </h2>
+</div>
+<div class="p-6 overflow-x-auto">
+<table class="w-full text-left border-collapse min-w-[800px]" id="children-table">
+<thead>
+<tr class="bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-bold uppercase tracking-wider border-b border-gray-200 dark:border-gray-800">
+<th class="px-4 py-3 w-1/4">Nama Anak Karyawan</th>
+<th class="px-4 py-3">Tahun Ajaran</th>
+<th class="px-4 py-3">Jenjang</th>
+<th class="px-4 py-3">Semester</th>
+<th class="px-4 py-3">Peringkat</th>
+<th class="px-4 py-3 text-right">Estimasi Nominal</th>
+</tr>
+</thead>
+<tbody id="children-table-body" class="divide-y divide-gray-100 dark:divide-gray-800">
+                                            <!-- Dynamically Prefilled Row -->
+                                        </tbody>
+</table>
+</div>
+</div>
+
+<!-- Upload Documents Card (Verify View) -->
+<div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+<div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a2634]">
+<h2 class="text-[#111418] dark:text-white text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-avian-green">verified_user</span>
+                                        Verifikasi Dokumen Lampiran
+                                    </h2>
+</div>
+<div class="p-6 flex flex-col gap-6">
+<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded p-4 text-sm text-blue-800 dark:text-blue-200">
+<span class="font-bold">Informasi:</span> Tinjau kesesuaian berkas lampiran di bawah ini. Tekan tombol Approve atau Correction pada masing-masing dokumen.
+                                </div>
+<!-- Row 1: Rapor -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center border-b border-gray-100 dark:border-gray-800 pb-6">
+<div class="lg:col-span-3">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block">Fotocopy Rapor Legalisir <span class="text-red-500">*</span></span>
+<span class="text-xs text-gray-500">Halaman nilai semester terakhir</span>
+</div>
+<div class="lg:col-span-5">
+<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700 shadow-inner">
+<span class="material-symbols-outlined text-[#006837] text-2xl">picture_as_pdf</span>
+<div class="flex flex-col">
+<span class="text-sm text-gray-800 dark:text-gray-200 font-semibold truncate">rapor_legalisir_final.pdf</span>
+<span class="text-[10px] text-gray-400">1.8 MB • PDF</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 flex gap-2">
+<button type="button" onclick="openConfirmModal('approve', 'Rapor Legalisir')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
+</button>
+<button type="button" onclick="openConfirmModal('correction', 'raport')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded font-bold text-xs transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">edit</span> Correction
+</button>
+</div>
+</div>
+<!-- Row 2: Ranking Certificate -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center border-b border-gray-100 dark:border-gray-800 pb-6 last:border-0 last:pb-0">
+<div class="lg:col-span-3">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block">Surat Keterangan Ranking <span class="text-red-500">*</span></span>
+<span class="text-xs text-gray-500">Dari Sekolah</span>
+</div>
+<div class="lg:col-span-5">
+<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700 shadow-inner">
+<span class="material-symbols-outlined text-[#006837] text-2xl">picture_as_pdf</span>
+<div class="flex flex-col">
+<span class="text-sm text-gray-800 dark:text-gray-200 font-semibold truncate">surat_keterangan_ranking.pdf</span>
+<span class="text-[10px] text-gray-400">1.2 MB • PDF</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 flex gap-2">
+<button type="button" onclick="openConfirmModal('approve', 'Surat Ranking')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
+</button>
+<button type="button" onclick="openConfirmModal('correction', 'ranking')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded font-bold text-xs transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">edit</span> Correction
+</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Approval Section -->
+<div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+<div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a2634]">
+<h2 class="text-[#111418] dark:text-white text-lg font-bold">Approval Section</h2>
+</div>
+<div class="p-6 flex flex-wrap gap-8 justify-start items-start bg-gray-50 dark:bg-gray-900/50">
+        <!-- Box 1: HR Personnel Staff -->
+        <div class="flex flex-col items-center">
+            <div class="w-64 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded shadow-sm overflow-hidden text-center text-xs">
+                <div class="bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 uppercase">
+                    HR Personnel Staff
+                </div>
+                <div id="signature-container" class="h-32 flex flex-col items-center justify-center p-4 relative bg-white dark:bg-gray-850">
+                    <!-- Default signature SVG when verified -->
+                    <div id="default-signature" class="flex flex-col items-center justify-center">
+                        <svg class="w-40 h-20 text-gray-800 dark:text-gray-200" viewBox="0 0 100 50" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15,40 Q25,10 32,35 T55,15 T72,42 T85,25" />
+                        </svg>
+                        <span class="text-[10px] text-gray-400 mt-1 block">Signed & Verified</span>
+                    </div>
+                    <!-- Signature drawing button when NOT verified -->
+                    <button id="sign-here-btn" type="button" onclick="openSignatureModal()" class="hidden flex flex-col items-center justify-center w-full h-full border border-dashed border-gray-300 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors group">
+                        <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green text-3xl mb-1">edit_square</span>
+                        <span class="text-xs text-gray-500 group-hover:text-avian-green font-semibold">Sign Here</span>
+                    </button>
+                    <!-- Display canvas drawn signature -->
+                    <img id="drawn-signature-img" class="hidden h-20 object-contain" alt="Signature" />
+                </div>
+                <div class="bg-gray-100 dark:bg-gray-700 px-3 py-2 font-bold text-gray-800 dark:text-white border-t border-gray-200 dark:border-gray-700">
+                    01225026 - AZHAR AMIRUL MUDZAKI
+                </div>
+            </div>
+            <!-- Action buttons below box 1 -->
+            <div class="flex rounded border border-gray-250 dark:border-gray-700 overflow-hidden shadow-sm mt-3 w-64">
+                <button type="button" onclick="openConfirmModal('approve')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors">
+                    <span class="material-symbols-outlined text-sm">check_circle</span> Approve
+                </button>
+                <button type="button" onclick="openConfirmModal('correction')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-amber-500 hover:bg-amber-600 text-gray-905 text-xs font-bold transition-colors">
+                    <span class="material-symbols-outlined text-sm">edit</span> Correction
+                </button>
+                <button type="button" onclick="openConfirmModal('reject')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors">
+                    <span class="material-symbols-outlined text-sm">cancel</span> Reject
+                </button>
+            </div>
+        </div>
+
+        <!-- Box 2: HR Ops. Manager -->
+        <div class="flex flex-col items-center">
+            <div class="w-64 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded shadow-sm overflow-hidden text-center opacity-70">
+                <div class="bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 uppercase">
+                    HR Ops. Manager
+                </div>
+                <div class="h-32 flex flex-col items-center justify-center p-4 relative bg-gray-100 dark:bg-gray-800/30">
+                    <span class="text-xs text-gray-400">Waiting Signature</span>
+                </div>
+                <div class="bg-gray-100 dark:bg-gray-700 px-3 py-2 text-xs font-bold text-gray-800 dark:text-white border-t border-gray-200 dark:border-gray-700">
+                    01220043 - HELMI SALAMPESSY
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
+<button onclick="window.location.href='index.html'" class="px-6 py-2.5 rounded border border-gray-300 dark:border-gray-600 text-[#111418] dark:text-white font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors bg-white dark:bg-transparent text-sm min-w-[100px]" type="button">
+                                    Kembali ke Dashboard
+                                </button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+<!-- Modal Correction Selection -->
+<div id="correction-selection-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md overflow-hidden flex flex-col">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-[#1a2634]">
+            <h3 class="text-[#111418] dark:text-white text-lg font-bold flex items-center gap-2">
+                <span class="material-symbols-outlined text-amber-500">edit_note</span>
+                Pilih Jenis Koreksi
+            </h3>
+            <button type="button" onclick="closeCorrectionSelectionModal()" class="text-gray-500 hover:text-gray-700 dark:hover:text-white">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <span class="text-sm text-gray-600 dark:text-gray-300 font-medium">Pilih jenis koreksi yang diajukan ke karyawan:</span>
+            <div class="flex flex-col gap-3">
+                <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-amber-500/5 transition-colors">
+                    <input type="radio" name="correction-type" id="corr-kk" class="text-amber-500 focus:ring-amber-500" value="KOREKSI KK">
+                    <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">KOREKSI KK</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-amber-500/5 transition-colors">
+                    <input type="radio" name="correction-type" id="corr-raport" class="text-amber-500 focus:ring-amber-500" value="KOREKSI RAPORT">
+                    <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">KOREKSI RAPORT</span>
+                </label>
+                <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-amber-500/5 transition-colors">
+                    <input type="radio" name="correction-type" id="corr-ranking" class="text-amber-500 focus:ring-amber-500" value="KOREKSI DOKUMEN RANKING">
+                    <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">KOREKSI DOKUMEN RANKING</span>
+                </label>
+            </div>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+            <button type="button" onclick="closeCorrectionSelectionModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded text-sm font-semibold text-gray-800 dark:text-white transition-colors">
+                Batal
+            </button>
+            <button type="button" onclick="submitCorrectionSelection()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-gray-909 rounded text-sm font-semibold transition-colors">
+                Lanjutkan
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal E-Signature -->
+<div id="signature-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-xl border border-gray-200 dark:border-gray-850 w-full max-w-md overflow-hidden flex flex-col">
+        <div class="px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-primary text-white">
+            <h3 class="text-white text-sm font-bold flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px]">edit_note</span>
+                E-Signature
+            </h3>
+            <button type="button" onclick="closeSignatureModal()" class="text-white/80 hover:text-white flex items-center">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+        <div class="p-6 flex flex-col gap-4 text-center">
+            <span class="text-xs text-gray-500 dark:text-gray-300">Tanda tangan di area di bawah ini menggunakan mouse atau touch screen</span>
+            <div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden bg-white">
+                <canvas id="signature-canvas" class="w-full h-48 bg-white cursor-crosshair block"></canvas>
+            </div>
+        </div>
+        <div class="px-4 py-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+            <button type="button" onclick="clearSignature()" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors uppercase">
+                <span class="material-symbols-outlined text-[16px]">mop</span> Clear
+            </button>
+            <button type="button" onclick="saveSignature()" class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[#006837] hover:bg-[#00522b] text-white rounded text-xs font-bold transition-colors uppercase">
+                <span class="material-symbols-outlined text-[16px]">check</span> Save Signature
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmation Dialog -->
+<div id="confirm-modal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-sm overflow-hidden flex flex-col">
+        <div class="p-6 text-center">
+            <span class="material-symbols-outlined text-4xl text-amber-500 mb-2">warning</span>
+            <h4 id="confirm-modal-title" class="text-base font-bold text-[#111418] dark:text-white mb-2">Konfirmasi Tindakan</h4>
+            <p id="confirm-modal-desc" class="text-sm text-gray-500 dark:text-gray-300 mb-6">Apakah anda yakin ingin melakukan tindakan ini?</p>
+            <div class="flex items-center justify-center gap-3">
+                <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 rounded font-semibold text-sm transition-colors min-w-[80px]">
+                    Batal
+                </button>
+                <button id="confirm-modal-submit" type="button" onclick="handleFinalSubmit()" class="px-4 py-2 rounded text-white font-semibold text-sm transition-colors min-w-[120px]">
+                    Ya, Lanjutkan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Success Notification -->
+<div id="toast-success" class="fixed top-4 right-4 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-[-100px] opacity-0 transition-all duration-300 z-[70]">
+    <span class="material-symbols-outlined text-white text-xl">check_circle</span>
+    <span id="toast-message" class="text-sm font-semibold">Tindakan berhasil diproses!</span>
+</div>
+
+</body>
+</html>

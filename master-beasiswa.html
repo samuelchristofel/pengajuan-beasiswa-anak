@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html class="light" lang="id">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Master Beasiswa - PT AVIA AVIAN TBK</title>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#006837", // Avian Green
+                        "avian-green": "#006837",
+                        "avian-dark": "#333333", // Dark gray/charcoal for sidebar
+                        "avian-hover": "#4a4a4a", // Slightly lighter for sidebar hover
+                        "background-light": "#f1f1f1",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.375rem",
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+        .sidebar-transition {
+            transition: width 0.3s ease-in-out;
+        }
+        .sidebar-text {
+             white-space: nowrap;
+        }
+    </style>
+    <script>
+        // In-memory Master Data store
+        let masterData = [
+            { id: 1, peringkat: 'Ranking 1', jenjang: 'SD', nominal: 750000 },
+            { id: 2, peringkat: 'Ranking 1', jenjang: 'SMP', nominal: 1000000 },
+            { id: 3, peringkat: 'Ranking 1', jenjang: 'SMA', nominal: 1500000 },
+            { id: 4, peringkat: 'Ranking 1', jenjang: 'S1', nominal: 3000000 },
+            { id: 5, peringkat: 'Ranking 2', jenjang: 'SD', nominal: 500000 },
+            { id: 6, peringkat: 'Ranking 2', jenjang: 'SMP', nominal: 750000 },
+            { id: 7, peringkat: 'Ranking 2', jenjang: 'SMA', nominal: 1000000 },
+            { id: 8, peringkat: 'Ranking 2', jenjang: 'S1', nominal: 2500000 },
+            { id: 9, peringkat: 'Ranking 3', jenjang: 'SD', nominal: 300000 },
+            { id: 10, peringkat: 'Ranking 3', jenjang: 'SMP', nominal: 500000 },
+            { id: 11, peringkat: 'Ranking 3', jenjang: 'SMA', nominal: 750000 },
+            { id: 12, peringkat: 'Ranking 3', jenjang: 'S1', nominal: 2000000 }
+        ];
+
+        let editingId = null;
+        let deletingId = null;
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('w-64')) {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-0');
+                sidebar.classList.add('overflow-hidden');
+            } else {
+                sidebar.classList.remove('w-0');
+                sidebar.classList.remove('overflow-hidden');
+                sidebar.classList.add('w-64');
+            }
+        }
+
+        // Format number to Rupiah string
+        function formatRupiah(num) {
+            return "Rp " + Number(num).toLocaleString('id-ID');
+        }
+
+        // Parse formatted Rupiah back to number
+        function parseRupiah(str) {
+            return Number(str.replace(/[^0-9]/g, ''));
+        }
+
+        // Render table records
+        function renderTable() {
+            const tbody = document.getElementById('master-table-body');
+            const searchVal = document.getElementById('search-bar').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            // Filter data
+            const filteredData = masterData.filter(item => {
+                return item.peringkat.toLowerCase().includes(searchVal) ||
+                       item.jenjang.toLowerCase().includes(searchVal) ||
+                       item.nominal.toString().includes(searchVal);
+            });
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                            Data tidak ditemukan
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            filteredData.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800";
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white text-center">${index + 1}</td>
+                    <td class="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 font-semibold">${item.peringkat}</td>
+                    <td class="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 uppercase">${item.jenjang}</td>
+                    <td class="px-6 py-4 text-sm text-right font-bold text-emerald-600 dark:text-emerald-400">${formatRupiah(item.nominal)}</td>
+                    <td class="px-6 py-4 text-sm text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="openEditModal(${item.id})" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1 flex items-center" title="Edit">
+                                <span class="material-symbols-outlined text-[20px]">edit</span>
+                            </button>
+                            <button onclick="openDeleteConfirm(${item.id})" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1 flex items-center" title="Delete">
+                                <span class="material-symbols-outlined text-[20px]">delete</span>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Handle Realtime Nominal Formatting in Modal
+        function onNominalInput(el) {
+            let val = parseRupiah(el.value);
+            if (isNaN(val)) val = 0;
+            el.value = val === 0 ? '' : Number(val).toLocaleString('id-ID');
+        }
+
+        // Open Form Modal
+        function openFormModal(id = null) {
+            editingId = id;
+            const modal = document.getElementById('form-modal');
+            const title = document.getElementById('modal-title');
+            const errorMsg = document.getElementById('modal-error');
+            errorMsg.classList.add('hidden');
+
+            const peringkatInput = document.getElementById('modal-peringkat');
+            const jenjangInput = document.getElementById('modal-jenjang');
+            const nominalInput = document.getElementById('modal-nominal');
+
+            if (id) {
+                // Edit mode
+                title.innerText = "Ubah Master Beasiswa";
+                const record = masterData.find(r => r.id === id);
+                peringkatInput.value = record.peringkat;
+                jenjangInput.value = record.jenjang;
+                nominalInput.value = Number(record.nominal).toLocaleString('id-ID');
+            } else {
+                // Add mode
+                title.innerText = "Tambah Master Beasiswa";
+                peringkatInput.value = "Ranking 1";
+                jenjangInput.value = "SD";
+                nominalInput.value = "";
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeFormModal() {
+            document.getElementById('form-modal').classList.add('hidden');
+        }
+
+        // Save Form Data (Add or Edit)
+        function saveForm() {
+            const peringkat = document.getElementById('modal-peringkat').value;
+            const jenjang = document.getElementById('modal-jenjang').value;
+            const nominalRaw = document.getElementById('modal-nominal').value;
+            const nominal = parseRupiah(nominalRaw);
+            const errorMsg = document.getElementById('modal-error');
+
+            // Validation checks
+            if (!nominalRaw || nominal <= 0) {
+                errorMsg.innerText = "Nominal tunjangan beasiswa harus diisi dan valid!";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            // Check Duplicate (Peringkat + Jenjang)
+            const isDuplicate = masterData.some(item => {
+                return item.peringkat.toLowerCase() === peringkat.toLowerCase() &&
+                       item.jenjang.toLowerCase() === jenjang.toLowerCase() &&
+                       item.id !== editingId;
+            });
+
+            if (isDuplicate) {
+                errorMsg.innerText = `Data master untuk '${peringkat}' dengan jenjang '${jenjang}' sudah ada!`;
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            // Perform Save
+            if (editingId) {
+                // Update
+                const index = masterData.findIndex(r => r.id === editingId);
+                masterData[index].peringkat = peringkat;
+                masterData[index].jenjang = jenjang;
+                masterData[index].nominal = nominal;
+                showToast("Data master beasiswa berhasil diperbarui!");
+            } else {
+                // Insert new
+                const newId = masterData.length > 0 ? Math.max(...masterData.map(r => r.id)) + 1 : 1;
+                masterData.push({ id: newId, peringkat, jenjang, nominal });
+                showToast("Data master beasiswa baru berhasil ditambahkan!");
+            }
+
+            closeFormModal();
+            renderTable();
+        }
+
+        // Delete Confirmations
+        function openDeleteConfirm(id) {
+            deletingId = id;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteConfirm() {
+            document.getElementById('delete-modal').classList.add('hidden');
+        }
+
+        function deleteRecord() {
+            if (deletingId) {
+                masterData = masterData.filter(r => r.id !== deletingId);
+                closeDeleteConfirm();
+                renderTable();
+                showToast("Data master beasiswa berhasil dihapus!");
+            }
+        }
+
+        // Toast Messages
+        function showToast(msg) {
+            const toast = document.getElementById('toast-success');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.innerText = msg;
+
+            toast.className = "fixed top-4 right-4 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+            
+            setTimeout(() => {
+                toast.className = "fixed top-4 right-4 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-[-100px] opacity-0 transition-all duration-300 z-50";
+            }, 3000);
+        }
+
+        // Initialize table on load
+        window.addEventListener('DOMContentLoaded', () => {
+            renderTable();
+        });
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#111418] dark:text-white overflow-hidden">
+<div class="flex flex-col h-screen w-full">
+<header class="h-14 bg-avian-green text-white flex items-center justify-between px-4 shrink-0 z-30 shadow-md relative">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 min-w-[200px]">
+<span class="material-symbols-outlined text-white text-3xl fill-1" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+<span class="text-white font-bold text-xl tracking-tight">Avian HRMS</span>
+</div>
+<button class="text-white hover:bg-white/10 rounded-full p-1 transition-colors" onclick="toggleSidebar()">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-white hover:bg-white/10 rounded-full p-1 transition-colors" title="Home" onclick="window.location.href='index.html'">
+<span class="material-symbols-outlined">home</span>
+</button>
+<div class="flex items-center gap-3 border-l border-white/20 pl-4">
+<span class="text-sm font-semibold text-white hidden sm:block">M. FAHMI MUSTOFA</span>
+<div class="size-8 rounded-full bg-white/20 text-white flex items-center justify-center overflow-hidden border border-white/30">
+<span class="material-symbols-outlined text-xl">person</span>
+</div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<aside class="flex flex-col w-64 h-full bg-avian-dark text-white shrink-0 sidebar-transition group overflow-y-auto" id="sidebar">
+<div class="py-4">
+<nav class="flex flex-col w-full">
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover transition-colors whitespace-nowrap" href="index.html">
+<span class="material-symbols-outlined text-white text-[20px]">home</span>
+<span class="text-sm font-medium sidebar-text">Home</span>
+</a>
+<div class="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Main Menu</div>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="index.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">dashboard</span>
+<span class="text-sm font-medium sidebar-text">Main Menu</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-avian-green text-white border-l-4 border-white transition-colors whitespace-nowrap" href="master-beasiswa.html">
+<span class="material-symbols-outlined text-white text-[20px] fill-1">history_edu</span>
+<span class="text-sm font-bold sidebar-text">Master Beasiswa</span>
+</a>
+</nav>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark relative">
+<div class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+<div class="max-w-[1000px] mx-auto flex flex-col gap-6 pb-12">
+<div class="flex flex-col gap-1 pb-2">
+<div class="flex items-center text-sm text-gray-500 mb-2">
+<a href="index.html" class="hover:text-avian-green">Dashboard</a>
+<span class="mx-2">›</span>
+<span class="text-avian-green font-medium">Master Beasiswa</span>
+</div>
+<h1 class="text-[#111418] dark:text-white text-2xl md:text-3xl font-bold leading-tight tracking-tight">Master Nominal Tunjangan Beasiswa</h1>
+<p class="text-gray-500 text-sm">Kelola standardisasi nominal tunjangan beasiswa prestasi berdasarkan jenjang dan peringkat.</p>
+</div>
+
+<!-- Search & Add Actions -->
+<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+    <div class="relative flex-1 max-w-md">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+        <input id="search-bar" onkeyup="renderTable()" type="text" placeholder="Cari peringkat, jenjang..." class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-avian-green focus:border-avian-green text-[#111418] dark:text-white" />
+    </div>
+    <button onclick="openFormModal()" class="flex items-center justify-center gap-1.5 px-4 py-2 bg-avian-green hover:bg-avian-green/90 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
+        <span class="material-symbols-outlined text-[18px]">add_circle</span> Tambah Master
+    </button>
+</div>
+
+<!-- Table Card -->
+<div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+<div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a2634]">
+<h2 class="text-[#111418] dark:text-white text-lg font-bold">Standard Nominal Master</h2>
+</div>
+<div class="p-0 overflow-x-auto">
+<table class="w-full text-left border-collapse min-w-[600px]">
+<thead>
+<tr class="bg-gray-50 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 text-xs font-bold uppercase tracking-wider border-b border-gray-100 dark:border-gray-800">
+<th class="px-6 py-3 w-16 text-center">No</th>
+<th class="px-6 py-3">Peringkat</th>
+<th class="px-6 py-3">Jenjang Pendidikan</th>
+<th class="px-6 py-3 text-right">Nominal Tunjangan</th>
+<th class="px-6 py-3 text-center w-24">Aksi</th>
+</tr>
+</thead>
+<tbody id="master-table-body" class="divide-y divide-gray-100 dark:divide-gray-800">
+<!-- Dynamic Table Rows -->
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div id="form-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md overflow-hidden flex flex-col">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-[#1a2634]">
+            <h3 id="modal-title" class="text-[#111418] dark:text-white text-lg font-bold">
+                Tambah Master Beasiswa
+            </h3>
+            <button type="button" onclick="closeFormModal()" class="text-gray-500 hover:text-gray-700 dark:hover:text-white">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <!-- Validation Error Alert -->
+            <div id="modal-error" class="hidden p-3 bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200 border border-red-200 dark:border-red-800 rounded text-xs font-semibold">
+                Warning Message
+            </div>
+
+            <label class="flex flex-col gap-1.5">
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Peringkat</span>
+                <select id="modal-peringkat" class="w-full rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#111418] dark:text-white text-sm focus:ring-1 focus:ring-avian-green">
+                    <option value="Ranking 1">Ranking 1</option>
+                    <option value="Ranking 2">Ranking 2</option>
+                    <option value="Ranking 3">Ranking 3</option>
+                </select>
+            </label>
+
+            <label class="flex flex-col gap-1.5">
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Jenjang Pendidikan</span>
+                <select id="modal-jenjang" class="w-full rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#111418] dark:text-white text-sm focus:ring-1 focus:ring-avian-green">
+                    <option value="SD">SD</option>
+                    <option value="SMP">SMP</option>
+                    <option value="SMA">SMA</option>
+                    <option value="S1">S1</option>
+                </select>
+            </label>
+
+            <label class="flex flex-col gap-1.5">
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Nominal Tunjangan (Rp)</span>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">Rp</span>
+                    <input id="modal-nominal" onkeyup="onNominalInput(this)" type="text" placeholder="Contoh: 1.000.000" class="w-full pl-9 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#111418] dark:text-white text-sm focus:ring-1 focus:ring-avian-green" />
+                </div>
+            </label>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
+            <button type="button" onclick="closeFormModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded text-sm font-semibold text-gray-800 dark:text-white transition-colors">
+                Batal
+            </button>
+            <button type="button" onclick="saveForm()" class="px-4 py-2 bg-avian-green hover:bg-avian-green/90 text-white rounded text-sm font-semibold transition-colors">
+                Simpan
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-sm overflow-hidden flex flex-col">
+        <div class="p-6 text-center">
+            <span class="material-symbols-outlined text-4xl text-red-500 mb-2">warning</span>
+            <h4 class="text-base font-bold text-[#111418] dark:text-white mb-2">Hapus Master Beasiswa</h4>
+            <p class="text-sm text-gray-500 dark:text-gray-300 mb-6">Apakah Anda yakin ingin menghapus data master beasiswa ini?</p>
+            <div class="flex items-center justify-center gap-3">
+                <button type="button" onclick="closeDeleteConfirm()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 rounded font-semibold text-sm transition-colors min-w-[80px]">
+                    Batal
+                </button>
+                <button type="button" onclick="deleteRecord()" class="px-4 py-2 bg-red-650 hover:bg-red-700 text-white rounded font-semibold text-sm transition-colors min-w-[100px] bg-red-600">
+                    Ya, Hapus
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Success Notification -->
+<div id="toast-success" class="fixed top-4 right-4 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-[-100px] opacity-0 transition-all duration-300 z-50">
+    <span class="material-symbols-outlined text-white text-xl">check_circle</span>
+    <span id="toast-message" class="text-sm font-semibold">Berhasil disimpan!</span>
+</div>
+
+</body>
+</html>
