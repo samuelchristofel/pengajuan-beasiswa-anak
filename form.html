@@ -100,6 +100,19 @@
             }
         };
 
+        // Master Data - Synchronized with master-beasiswa.html
+        const masterData = [
+            { id: 1, peringkat: 'Ranking 1', jenjang: 'SD', nominal: 750000 },
+            { id: 2, peringkat: 'Ranking 1', jenjang: 'SMP', nominal: 1000000 },
+            { id: 3, peringkat: 'Ranking 1', jenjang: 'SMA', nominal: 1500000 },
+            { id: 5, peringkat: 'Ranking 2', jenjang: 'SD', nominal: 500000 },
+            { id: 6, peringkat: 'Ranking 2', jenjang: 'SMP', nominal: 750000 },
+            { id: 7, peringkat: 'Ranking 2', jenjang: 'SMA', nominal: 1000000 },
+            { id: 9, peringkat: 'Ranking 3', jenjang: 'SD', nominal: 300000 },
+            { id: 10, peringkat: 'Ranking 3', jenjang: 'SMP', nominal: 500000 },
+            { id: 11, peringkat: 'Ranking 3', jenjang: 'SMA', nominal: 750000 }
+        ];
+
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             if (sidebar.classList.contains('w-64')) {
@@ -200,7 +213,7 @@
                         <option value="sd">SD</option>
                         <option value="smp">SMP</option>
                         <option value="sma">SMA/SMK</option>
-                        <option value="s1">Universitas (S1)</option>
+
                     </select>
                 </td>
                 <td class="px-4 py-3">
@@ -216,7 +229,6 @@
                         <option value="1">Peringkat 1</option>
                         <option value="2">Peringkat 2</option>
                         <option value="3">Peringkat 3</option>
-                        <option value="lainnya">Lainnya</option>
                     </select>
                 </td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">
@@ -289,38 +301,32 @@
             const row = document.getElementById(rowId);
             if (!row) return;
             
-            const jenjang = row.querySelector('.jenjang-select').value;
-            const peringkat = row.querySelector('.peringkat-select').value;
+            const jenjangSelect = row.querySelector('.jenjang-select').value;
+            const peringkatSelect = row.querySelector('.peringkat-select').value;
             const nominalSpan = row.querySelector('.row-nominal');
             
-            if (!jenjang || !peringkat) {
+            if (!jenjangSelect || !peringkatSelect) {
                 nominalSpan.innerText = "Rp 0";
                 nominalSpan.dataset.amount = 0;
                 return;
             }
             
-            let amount = 0;
-            if (jenjang === "sd") {
-                if (peringkat === "1") amount = 750000;
-                else if (peringkat === "2") amount = 600000;
-                else if (peringkat === "3") amount = 500000;
-                else amount = 300000;
-            } else if (jenjang === "smp") {
-                if (peringkat === "1") amount = 1200000;
-                else if (peringkat === "2") amount = 1000000;
-                else if (peringkat === "3") amount = 800000;
-                else amount = 500000;
-            } else if (jenjang === "sma") {
-                if (peringkat === "1") amount = 1800000;
-                else if (peringkat === "2") amount = 1500000;
-                else if (peringkat === "3") amount = 1200000;
-                else amount = 750000;
-            } else if (jenjang === "s1") {
-                if (peringkat === "1") amount = 3000000;
-                else if (peringkat === "2") amount = 2500000;
-                else if (peringkat === "3") amount = 2000000;
-                else amount = 1200000;
-            }
+            // Map form values to master data jenjang format
+            const jenjangMap = {
+                'sd': 'SD',
+                'smp': 'SMP',
+                'sma': 'SMA'
+            };
+            
+            const jenjangMapped = jenjangMap[jenjangSelect];
+            const peringkatMapped = 'Ranking ' + peringkatSelect;
+            
+            // Lookup in master data
+            const masterRecord = masterData.find(item => 
+                item.jenjang === jenjangMapped && item.peringkat === peringkatMapped
+            );
+            
+            const amount = masterRecord ? masterRecord.nominal : 0;
             
             nominalSpan.innerText = "Rp " + new Intl.NumberFormat('id-ID').format(amount);
             nominalSpan.dataset.amount = amount;

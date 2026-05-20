@@ -50,15 +50,12 @@
             { id: 1, peringkat: 'Ranking 1', jenjang: 'SD', nominal: 750000 },
             { id: 2, peringkat: 'Ranking 1', jenjang: 'SMP', nominal: 1000000 },
             { id: 3, peringkat: 'Ranking 1', jenjang: 'SMA', nominal: 1500000 },
-            { id: 4, peringkat: 'Ranking 1', jenjang: 'S1', nominal: 3000000 },
             { id: 5, peringkat: 'Ranking 2', jenjang: 'SD', nominal: 500000 },
             { id: 6, peringkat: 'Ranking 2', jenjang: 'SMP', nominal: 750000 },
             { id: 7, peringkat: 'Ranking 2', jenjang: 'SMA', nominal: 1000000 },
-            { id: 8, peringkat: 'Ranking 2', jenjang: 'S1', nominal: 2500000 },
             { id: 9, peringkat: 'Ranking 3', jenjang: 'SD', nominal: 300000 },
             { id: 10, peringkat: 'Ranking 3', jenjang: 'SMP', nominal: 500000 },
-            { id: 11, peringkat: 'Ranking 3', jenjang: 'SMA', nominal: 750000 },
-            { id: 12, peringkat: 'Ranking 3', jenjang: 'S1', nominal: 2000000 }
+            { id: 11, peringkat: 'Ranking 3', jenjang: 'SMA', nominal: 750000 }
         ];
 
         let editingId = null;
@@ -163,8 +160,8 @@
             } else {
                 // Add mode
                 title.innerText = "Tambah Master Beasiswa";
-                peringkatInput.value = "Ranking 1";
-                jenjangInput.value = "SD";
+                peringkatInput.value = "";
+                jenjangInput.value = "";
                 nominalInput.value = "";
             }
 
@@ -375,21 +372,12 @@
 
             <label class="flex flex-col gap-1.5">
                 <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Peringkat</span>
-                <select id="modal-peringkat" class="w-full rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#111418] dark:text-white text-sm focus:ring-1 focus:ring-avian-green">
-                    <option value="Ranking 1">Ranking 1</option>
-                    <option value="Ranking 2">Ranking 2</option>
-                    <option value="Ranking 3">Ranking 3</option>
-                </select>
+                <input type="text" id="modal-peringkat" placeholder="Contoh: Ranking 1" class="w-full rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#111418] dark:text-white text-sm focus:ring-1 focus:ring-avian-green">
             </label>
 
             <label class="flex flex-col gap-1.5">
                 <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">Jenjang Pendidikan</span>
-                <select id="modal-jenjang" class="w-full rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#111418] dark:text-white text-sm focus:ring-1 focus:ring-avian-green">
-                    <option value="SD">SD</option>
-                    <option value="SMP">SMP</option>
-                    <option value="SMA">SMA</option>
-                    <option value="S1">S1</option>
-                </select>
+                <input type="text" id="modal-jenjang" placeholder="Contoh: SD, SMP, SMA" class="w-full rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-[#111418] dark:text-white text-sm focus:ring-1 focus:ring-avian-green">
             </label>
 
             <label class="flex flex-col gap-1.5">
