@@ -416,6 +416,11 @@
             html = `<tr><td colspan="13" class="px-2 py-6 text-center text-gray-500">Tidak ada data ditemukan.</td></tr>`;
         } else {
             pageItems.forEach((entry, index) => {
+                const actionButton = entry.status === 'Done'
+                    ? `<button type="button" title="Download / Export" class="inline-flex items-center justify-center p-1.5 rounded text-avian-green hover:bg-avian-green/10 transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">file_download</span>
+                       </button>`
+                    : '';
                 html += `
                     <tr class="hover:bg-gray-50 transition-colors group">
                         <td class="px-2 py-3 text-gray-800 text-center border-r border-gray-200">${startIndex + index + 1}</td>
@@ -435,7 +440,7 @@
                         <td class="px-2 py-3 font-medium text-gray-800 text-right border-r border-gray-200 whitespace-nowrap">${formatCurrency(entry.jumlah)}</td>
                         <td class="px-2 py-3 text-center border-r border-gray-200 whitespace-nowrap">${getStatusBadge(entry)}</td>
                         <td class="px-2 py-3 text-center sticky right-0 bg-white shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)] group-hover:bg-gray-50 z-10">
-                            <div class="flex items-center justify-center gap-1 min-h-[18px]"></div>
+                            <div class="flex items-center justify-center gap-1 min-h-[18px]">${actionButton}</div>
                         </td>
                     </tr>`;
             });
