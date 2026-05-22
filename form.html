@@ -113,6 +113,27 @@
             { id: 11, peringkat: 'Ranking 3', jenjang: 'SMA', nominal: 750000 }
         ];
 
+        const STORAGE_KEY = 'avianScholarshipEntries';
+
+        function getStoredEntries() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function saveStoredEntries(entries) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+        }
+
+        function generateEntryId() {
+            return `entry-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        }
+
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             if (sidebar.classList.contains('w-64')) {
@@ -181,24 +202,10 @@
             tr.className = "hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors";
             
             const nik = document.getElementById('nik').value || "AV-20230045";
-            const data = kkData[nik] || kkData["AV-20230045"];
-            
-            let optionsHtml = '<option value="" disabled selected>Pilih Anak</option>';
-            data.members.forEach(member => {
-                if (member.hubungan === "ANAK") {
-                    optionsHtml += `<option value="${member.nama}">${member.nama}</option>`;
-                }
-            });
-            optionsHtml += '<option value="__manual__">Tulis Nama Lainnya...</option>';
             
             tr.innerHTML = `
                 <td class="px-4 py-3">
-                    <div class="flex flex-col gap-1">
-                        <select onchange="handleChildSelectChange(this)" class="child-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal">
-                            ${optionsHtml}
-                        </select>
-                        <input type="text" placeholder="Masukkan nama anak..." class="child-manual-input hidden w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 text-sm font-normal shadow-sm mt-1" />
-                    </div>
+                    <input type="text" placeholder="Masukkan nama anak..." class="child-name-input w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 text-sm font-normal shadow-sm" />
                 </td>
                 <td class="px-4 py-3">
                     <select class="tahun-ajaran-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal">
@@ -244,29 +251,13 @@
             tbody.appendChild(tr);
             
             if (initialData) {
-                const selectEl = tr.querySelector('.child-select');
-                const manualInput = tr.querySelector('.child-manual-input');
+                const nameInput = tr.querySelector('.child-name-input');
                 const tahunAjaranEl = tr.querySelector('.tahun-ajaran-select');
                 const jenjangEl = tr.querySelector('.jenjang-select');
                 const semesterEl = tr.querySelector('.semester-select');
                 const peringkatEl = tr.querySelector('.peringkat-select');
                 
-                let hasOption = false;
-                for (let i = 0; i < selectEl.options.length; i++) {
-                    if (selectEl.options[i].value === initialData.nama) {
-                        hasOption = true;
-                        break;
-                    }
-                }
-                
-                if (hasOption) {
-                    selectEl.value = initialData.nama;
-                } else {
-                    selectEl.value = "__manual__";
-                    manualInput.value = initialData.nama;
-                    manualInput.classList.remove('hidden');
-                }
-                
+                nameInput.value = initialData.nama || '';
                 if (initialData.tahunAjaran) {
                     tahunAjaranEl.value = initialData.tahunAjaran;
                 }
@@ -275,18 +266,6 @@
                 peringkatEl.value = initialData.peringkat;
                 
                 updateRowNominal(rowId);
-            }
-        }
-
-        function handleChildSelectChange(selectEl) {
-            const parent = selectEl.parentElement;
-            const manualInput = parent.querySelector('.child-manual-input');
-            if (selectEl.value === '__manual__') {
-                manualInput.classList.remove('hidden');
-                manualInput.focus();
-            } else {
-                manualInput.classList.add('hidden');
-                manualInput.value = '';
             }
         }
 
@@ -351,29 +330,28 @@
 
         function handleSubmit(event) {
             event.preventDefault();
-            
+
             const rows = document.querySelectorAll('#children-table-body tr');
             if (rows.length === 0) {
                 alert('Silakan tambah minimal satu anak untuk diajukan.');
                 return;
             }
-            
+
             let valid = true;
+            const children = [];
+            let totalAmount = 0;
+
             rows.forEach(row => {
-                const childSelect = row.querySelector('.child-select');
-                const manualInput = row.querySelector('.child-manual-input');
+                const nameInput = row.querySelector('.child-name-input');
                 const tahunAjaran = row.querySelector('.tahun-ajaran-select').value;
                 const jenjang = row.querySelector('.jenjang-select').value;
                 const semester = row.querySelector('.semester-select').value;
                 const peringkat = row.querySelector('.peringkat-select').value;
-                
-                let namaAnak = childSelect.value;
-                if (namaAnak === '__manual__') {
-                    namaAnak = manualInput.value.trim();
-                }
-                
+                const nominalAmount = Number(row.querySelector('.row-nominal')?.dataset.amount || 0);
+
+                const namaAnak = nameInput.value.trim();
                 if (!namaAnak) {
-                    alert('Nama anak wajib diisi / dipilih.');
+                    alert('Nama anak wajib diisi.');
                     valid = false;
                     return;
                 }
@@ -397,22 +375,58 @@
                     valid = false;
                     return;
                 }
+
+                children.push({
+                    nama: namaAnak,
+                    tahunAjaran,
+                    jenjang: jenjang.toUpperCase(),
+                    semester,
+                    peringkat,
+                    nominal: nominalAmount
+                });
+                totalAmount += nominalAmount;
             });
-            
+
             if (!valid) return;
-            
+
             const pernyataan = document.getElementById('pernyataan').checked;
             if (!pernyataan) {
                 alert('Anda harus menyetujui pernyataan kebenaran data.');
                 return;
             }
-            
+
             const params = new URLSearchParams(window.location.search);
             const mode = params.get('mode') || 'add';
-            
-            if (mode === 'edit') {
+            const entryId = params.get('entryId');
+
+            const newEntry = {
+                id: mode === 'edit' && entryId ? entryId : generateEntryId(),
+                tanggal: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+                nik: document.getElementById('nik').value,
+                karyawan: document.getElementById('karyawan').value,
+                bagian: document.getElementById('bagian').value,
+                anak: children[0]?.nama || '',
+                peringkat: children[0]?.peringkat || '',
+                semester: children[0]?.semester || '',
+                jenjang: children[0]?.jenjang || '',
+                jumlah: totalAmount,
+                status: 'Belum Verified',
+                statusTip: ''
+            };
+
+            const storedEntries = getStoredEntries();
+            if (mode === 'edit' && entryId) {
+                const editedIndex = storedEntries.findIndex(item => item.id === entryId);
+                if (editedIndex >= 0) {
+                    storedEntries[editedIndex] = newEntry;
+                } else {
+                    storedEntries.unshift(newEntry);
+                }
+                saveStoredEntries(storedEntries);
                 showToast('Perubahan pengajuan beasiswa berhasil disimpan!');
             } else {
+                storedEntries.unshift(newEntry);
+                saveStoredEntries(storedEntries);
                 showToast('Pengajuan beasiswa berhasil dikirim!');
             }
         }
@@ -445,7 +459,7 @@
                 // Prepopulate child from url parameters
                 if (params.get('anak')) {
                     const jenjangParam = params.get('jenjang') ? params.get('jenjang').toLowerCase() : '';
-                    const mappedJenjang = jenjangParam === 'kuliah' ? 's1' : jenjangParam;
+                    const mappedJenjang = (jenjangParam === 'kuliah' || jenjangParam === 's1') ? 'sma' : jenjangParam;
                     addChildRow({
                         nama: params.get('anak'),
                         tahunAjaran: '2025/2026', // defaults in edit mode

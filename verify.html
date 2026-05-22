@@ -54,8 +54,30 @@
         // Store selected correction target internally to show contextual messages
         let activeCorrectionTarget = '';
         let pendingAction = ''; // 'approve' | 'reject' | 'correction'
+        let pendingActionSource = '';
+        let pendingActionDocKey = '';
         let selectedCorrectionType = '';
+        let pendingRejectNote = '';
         let isSigned = true; // default true for Done or Koreksi, false for Belum Verified
+        const STORAGE_KEY = 'avianScholarshipEntries';
+        const DOC_KEYS = ['kk', 'raport', 'ranking'];
+
+        function normalizeDocTarget(target) {
+            if (!target) return '';
+            const lower = target.toLowerCase();
+            if (lower.includes('rapor')) return 'raport';
+            if (lower.includes('ranking')) return 'ranking';
+            if (lower.includes('kartu keluarga') || lower === 'kk' || lower.includes(' kk')) return 'kk';
+            return '';
+        }
+
+        function humanizeCorrectionLabel(label) {
+            if (!label) return label;
+            return label
+                .split(' ')
+                .map((word, index) => index === 0 ? `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}` : word.toUpperCase())
+                .join(' ');
+        }
 
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -71,7 +93,13 @@
         }
 
         // Action Handlers
-        function openConfirmModal(action, target = '') {
+        function openConfirmModal(action, target = '', source = 'overall') {
+            if (source === 'doc') {
+                pendingActionDocKey = normalizeDocTarget(target);
+            } else {
+                pendingActionDocKey = '';
+            }
+
             if (action === 'approve' && !target && !isSigned) {
                 // If they haven't signed yet, force drawing the e-signature first
                 openSignatureModal();
@@ -79,14 +107,21 @@
             }
 
             pendingAction = action;
+            pendingActionSource = source;
             activeCorrectionTarget = target;
             
             const titleEl = document.getElementById('confirm-modal-title');
             const descEl = document.getElementById('confirm-modal-desc');
             const confirmBtn = document.getElementById('confirm-modal-submit');
+            const rejectNotesWrap = document.getElementById('reject-notes-wrap');
+            const rejectNotesInput = document.getElementById('reject-notes-input');
+            const rejectNotesError = document.getElementById('reject-notes-error');
             
             // Format buttons
             confirmBtn.className = "px-4 py-2 text-white rounded text-sm font-semibold shadow-sm transition-colors ";
+            if (rejectNotesWrap) rejectNotesWrap.classList.add('hidden');
+            if (rejectNotesInput) rejectNotesInput.value = '';
+            if (rejectNotesError) rejectNotesError.classList.add('hidden');
             
             if (action === 'approve') {
                 titleEl.innerText = "Konfirmasi Persetujuan";
@@ -99,90 +134,164 @@
                 document.getElementById('confirm-modal').classList.remove('hidden');
             } else if (action === 'reject') {
                 titleEl.innerText = "Konfirmasi Penolakan";
-                descEl.innerText = "Apakah Anda yakin ingin menolak (Reject) pengajuan beasiswa ini?";
+                descEl.innerText = "Isi catatan penolakan sebelum melanjutkan.";
                 confirmBtn.innerText = "Ya, Tolak";
                 confirmBtn.classList.add("bg-red-600", "hover:bg-red-700");
+                if (rejectNotesWrap) rejectNotesWrap.classList.remove('hidden');
                 
                 document.getElementById('confirm-modal').classList.remove('hidden');
             } else if (action === 'correction') {
-                // If Correction, open Selection Modal first
-                openCorrectionSelectionModal(target);
+                // Auto-determine correction type from target
+                if (target === 'raport') {
+                    selectedCorrectionType = 'Koreksi Rapor';
+                } else if (target === 'ranking') {
+                    selectedCorrectionType = 'Koreksi Surat Ket. Ranking';
+                } else {
+                    selectedCorrectionType = 'Koreksi KK';
+                }
+                
+                titleEl.innerText = "Konfirmasi Koreksi";
+                descEl.innerText = `Apakah Anda yakin ingin memproses status menjadi Koreksi: "${selectedCorrectionType}"?`;
+                confirmBtn.innerText = "Ya, Kirim Koreksi";
+                confirmBtn.classList.add("bg-amber-500", "hover:bg-amber-600", "text-gray-900");
+                
+                document.getElementById('confirm-modal').classList.remove('hidden');
             }
+        }
+
+        function muteButtonColor(btn) {
+            if (!btn) return;
+            btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700', 'text-white');
+            btn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'text-gray-900');
+            btn.classList.remove('bg-red-600', 'hover:bg-red-700');
+            btn.classList.add('bg-gray-200', 'text-gray-500');
+        }
+
+        function setButtonReadOnly(action, target, source, typeLabel) {
+            const disableButton = (btn, shouldMute = false) => {
+                if (!btn) return;
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                if (shouldMute) muteButtonColor(btn);
+            };
+
+            if (action === 'approve') {
+                if (source === 'doc') {
+                    if (target === 'raport') {
+                        const btn = document.getElementById('button-approve-rapor');
+                        const oppositeBtn = document.getElementById('button-correction-rapor');
+                        if (btn) {
+                            btn.innerText = 'Approved';
+                            disableButton(btn);
+                        }
+                        if (oppositeBtn) {
+                            disableButton(oppositeBtn, true);
+                        }
+                    }
+                    if (target === 'ranking') {
+                        const btn = document.getElementById('button-approve-ranking');
+                        const oppositeBtn = document.getElementById('button-correction-ranking');
+                        if (btn) {
+                            btn.innerText = 'Approved';
+                            disableButton(btn);
+                        }
+                        if (oppositeBtn) {
+                            disableButton(oppositeBtn, true);
+                        }
+                    }
+                    if (target === 'kk') {
+                        const btn = document.getElementById('button-approve-kk');
+                        const oppositeBtn = document.getElementById('button-correction-kk');
+                        if (btn) {
+                            btn.innerText = 'Approved';
+                            disableButton(btn);
+                        }
+                        if (oppositeBtn) {
+                            disableButton(oppositeBtn, true);
+                        }
+                    }
+                } else {
+                    const btn = document.getElementById('button-approve-overall');
+                    if (btn) {
+                        btn.innerText = 'Approved';
+                        disableButton(btn);
+                    }
+                }
+            }
+
+            if (action === 'correction') {
+                if (source === 'doc') {
+                    if (target === 'raport') {
+                        const btn = document.getElementById('button-correction-rapor');
+                        const oppositeBtn = document.getElementById('button-approve-rapor');
+                        if (btn) {
+                            btn.innerText = typeLabel || 'KOREKSI RAPORT';
+                            disableButton(btn);
+                        }
+                        if (oppositeBtn) {
+                            disableButton(oppositeBtn, true);
+                        }
+                    }
+                    if (target === 'ranking') {
+                        const btn = document.getElementById('button-correction-ranking');
+                        const oppositeBtn = document.getElementById('button-approve-ranking');
+                        if (btn) {
+                            btn.innerText = typeLabel || 'KOREKSI SURAT KET. RANKING';
+                            disableButton(btn);
+                        }
+                        if (oppositeBtn) {
+                            disableButton(oppositeBtn, true);
+                        }
+                    }
+                    if (target === 'kk') {
+                        const btn = document.getElementById('button-correction-kk');
+                        const oppositeBtn = document.getElementById('button-approve-kk');
+                        if (btn) {
+                            btn.innerText = typeLabel || 'KOREKSI KK';
+                            disableButton(btn);
+                        }
+                        if (oppositeBtn) {
+                            disableButton(oppositeBtn, true);
+                        }
+                    }
+                } else {
+                    const btn = document.getElementById('button-correction-overall');
+                    if (btn) {
+                        btn.innerText = typeLabel || 'Correction';
+                        disableButton(btn);
+                    }
+                }
+            }
+
+            if (action === 'reject' && source === 'overall') {
+                disableButton(document.getElementById('button-reject-overall'));
+            }
+        }
+
+        function setAllActionButtonsDisabled(disabled) {
+            const ids = [
+                'button-approve-overall',
+                'button-correction-overall',
+                'button-reject-overall',
+                'button-approve-rapor',
+                'button-correction-rapor',
+                'button-approve-ranking',
+                'button-correction-ranking',
+                'button-approve-kk',
+                'button-correction-kk'
+            ];
+            ids.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) {
+                    btn.disabled = disabled;
+                    btn.classList.toggle('opacity-50', disabled);
+                    btn.classList.toggle('cursor-not-allowed', disabled);
+                }
+            });
         }
 
         function closeConfirmModal() {
             document.getElementById('confirm-modal').classList.add('hidden');
-        }
-
-        // Correction Selection Modal
-        function openCorrectionSelectionModal(target = '') {
-            activeCorrectionTarget = target;
-            
-            // Auto-check based on where it was clicked
-            if (target === 'raport') {
-                document.getElementById('corr-raport').checked = true;
-            } else if (target === 'ranking') {
-                document.getElementById('corr-ranking').checked = true;
-            } else {
-                document.getElementById('corr-kk').checked = true;
-            }
-            
-            document.getElementById('correction-selection-modal').classList.remove('hidden');
-        }
-
-        function closeCorrectionSelectionModal() {
-            document.getElementById('correction-selection-modal').classList.add('hidden');
-        }
-
-        function submitCorrectionSelection() {
-            // Get selected correction type
-            if (document.getElementById('corr-kk').checked) {
-                selectedCorrectionType = "KOREKSI KK";
-            } else if (document.getElementById('corr-raport').checked) {
-                selectedCorrectionType = "KOREKSI RAPORT";
-            } else if (document.getElementById('corr-ranking').checked) {
-                selectedCorrectionType = "KOREKSI DOKUMEN RANKING";
-            }
-            
-            closeCorrectionSelectionModal();
-            
-            // Move to final double confirmation modal
-            const titleEl = document.getElementById('confirm-modal-title');
-            const descEl = document.getElementById('confirm-modal-desc');
-            const confirmBtn = document.getElementById('confirm-modal-submit');
-            
-            confirmBtn.className = "px-4 py-2 text-white rounded text-sm font-semibold shadow-sm transition-colors ";
-            
-            titleEl.innerText = "Konfirmasi Koreksi";
-            descEl.innerText = `Apakah Anda yakin ingin memproses status menjadi Koreksi dengan jenis: "${selectedCorrectionType}"?`;
-            confirmBtn.innerText = "Ya, Kirim Koreksi";
-            confirmBtn.classList.add("bg-amber-500", "hover:bg-amber-600", "text-gray-900");
-            
-            document.getElementById('confirm-modal').classList.remove('hidden');
-        }
-
-        // Final Confirm Process
-        function handleFinalSubmit() {
-            closeConfirmModal();
-            const toast = document.getElementById('toast-success');
-            const toastMsg = document.getElementById('toast-message');
-            
-            if (pendingAction === 'approve') {
-                toastMsg.innerText = activeCorrectionTarget 
-                    ? `Dokumen ${activeCorrectionTarget} berhasil disetujui!`
-                    : "Pengajuan beasiswa berhasil disetujui (Done)!";
-                toast.className = "fixed top-4 right-4 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
-            } else if (pendingAction === 'reject') {
-                toastMsg.innerText = "Pengajuan beasiswa berhasil ditolak (Rejected)!";
-                toast.className = "fixed top-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
-            } else if (pendingAction === 'correction') {
-                toastMsg.innerText = `Status pengajuan berhasil diubah menjadi Koreksi (${selectedCorrectionType})!`;
-                toast.className = "fixed top-4 right-4 bg-amber-500 text-gray-900 px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
-            }
-            
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 2000);
         }
 
         // Canvas E-Signature logic
@@ -248,6 +357,306 @@
             document.getElementById('signature-modal').classList.add('hidden');
         }
 
+        function handleUploadSignature(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('drawn-signature-img');
+                img.src = e.target.result;
+                img.classList.remove('hidden');
+                document.getElementById('default-signature').classList.add('hidden');
+                document.getElementById('upload-signature-area').classList.add('hidden');
+                isSigned = true;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setStatus(text, classes) {
+            const badge = document.getElementById('verification-status-badge');
+            if (!badge) return;
+            badge.innerText = `Status: ${text}`;
+            badge.className = classes;
+        }
+
+        function updateStatusBadge(status) {
+            if (status === 'Done' || status === 'Approved') {
+                setStatus(status, 'mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-600/20 bg-emerald-50 text-emerald-800 px-3 py-1 text-xs font-semibold');
+            } else if (status === 'Rejected') {
+                setStatus('Rejected', 'mt-3 inline-flex items-center gap-2 rounded-full border border-red-600/20 bg-red-50 text-red-800 px-3 py-1 text-xs font-semibold');
+            } else {
+                setStatus(status, 'mt-3 inline-flex items-center gap-2 rounded-full border border-amber-600/20 bg-amber-50 text-amber-800 px-3 py-1 text-xs font-semibold');
+            }
+        }
+
+        function getCurrentEntryIdentity() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                nik: params.get('nik') || '',
+                karyawan: params.get('karyawan') || '',
+                anak: params.get('anak') || ''
+            };
+        }
+
+        function updateEntryInStorage(nextStatus, nextStatusTip = '') {
+            try {
+                const identity = getCurrentEntryIdentity();
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return;
+                const idx = parsed.findIndex((entry) =>
+                    String(entry.nik || '') === identity.nik &&
+                    String(entry.karyawan || '') === identity.karyawan &&
+                    String(entry.anak || '') === identity.anak
+                );
+                if (idx < 0) return;
+                parsed[idx].status = nextStatus;
+                parsed[idx].statusTip = nextStatusTip;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            } catch (error) {
+                // Keep UI responsive even if localStorage data is malformed.
+            }
+        }
+
+        function getDefaultVerificationState() {
+            return {
+                docs: { kk: 'pending', raport: 'pending', ranking: 'pending' },
+                overall: 'pending'
+            };
+        }
+
+        function patchCurrentEntryInStorage(patchFn) {
+            try {
+                const identity = getCurrentEntryIdentity();
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return;
+                const idx = parsed.findIndex((entry) =>
+                    String(entry.nik || '') === identity.nik &&
+                    String(entry.karyawan || '') === identity.karyawan &&
+                    String(entry.anak || '') === identity.anak
+                );
+                if (idx < 0) return;
+                patchFn(parsed[idx]);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+            } catch (error) {
+                // no-op
+            }
+        }
+
+        function getCurrentEntryFromStorage() {
+            try {
+                const identity = getCurrentEntryIdentity();
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return null;
+                return parsed.find((entry) =>
+                    String(entry.nik || '') === identity.nik &&
+                    String(entry.karyawan || '') === identity.karyawan &&
+                    String(entry.anak || '') === identity.anak
+                ) || null;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function setDocDecision(docKey, decision) {
+            if (!DOC_KEYS.includes(docKey)) return;
+            if (decision === 'approved') {
+                setButtonReadOnly('approve', docKey, 'doc');
+            }
+            if (decision === 'correction') {
+                const labels = {
+                    kk: 'KOREKSI KK',
+                    raport: 'KOREKSI RAPOR',
+                    ranking: 'KOREKSI SURAT KET. RANKING'
+                };
+                setButtonReadOnly('correction', docKey, 'doc', labels[docKey]);
+            }
+        }
+
+        function setOverallDecision(decision) {
+            if (decision === 'approve') {
+                const approveBtn = document.getElementById('button-approve-overall');
+                const correctionBtn = document.getElementById('button-correction-overall');
+                const rejectBtn = document.getElementById('button-reject-overall');
+                if (approveBtn) setButtonReadOnly('approve', '', 'overall');
+                if (correctionBtn) {
+                    correctionBtn.disabled = true;
+                    correctionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    muteButtonColor(correctionBtn);
+                }
+                if (rejectBtn) {
+                    rejectBtn.disabled = true;
+                    rejectBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    muteButtonColor(rejectBtn);
+                }
+            }
+            if (decision === 'correction') {
+                const approveBtn = document.getElementById('button-approve-overall');
+                const correctionBtn = document.getElementById('button-correction-overall');
+                const rejectBtn = document.getElementById('button-reject-overall');
+                if (correctionBtn) setButtonReadOnly('correction', '', 'overall', 'KOREKSI');
+                if (approveBtn) {
+                    approveBtn.disabled = true;
+                    approveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    muteButtonColor(approveBtn);
+                }
+                if (rejectBtn) {
+                    rejectBtn.disabled = true;
+                    rejectBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    muteButtonColor(rejectBtn);
+                }
+            }
+            if (decision === 'reject') {
+                const approveBtn = document.getElementById('button-approve-overall');
+                const correctionBtn = document.getElementById('button-correction-overall');
+                const rejectBtn = document.getElementById('button-reject-overall');
+                if (rejectBtn) setButtonReadOnly('reject', '', 'overall');
+                if (approveBtn) {
+                    approveBtn.disabled = true;
+                    approveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    muteButtonColor(approveBtn);
+                }
+                if (correctionBtn) {
+                    correctionBtn.disabled = true;
+                    correctionBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    muteButtonColor(correctionBtn);
+                }
+            }
+        }
+
+        function mergeCorrectionTip(existingTip, newTip) {
+            const current = (existingTip || '')
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean);
+            const normalized = current.map((item) => item.toUpperCase());
+            if (!normalized.includes(newTip.toUpperCase())) {
+                current.push(newTip);
+            }
+            return current.join(', ');
+        }
+
+        function areAllAttachmentDocsApproved() {
+            const ids = ['button-approve-kk', 'button-approve-rapor', 'button-approve-ranking'];
+            return ids.every((id) => {
+                const btn = document.getElementById(id);
+                if (!btn) return false;
+                return btn.disabled && btn.innerText.trim().toLowerCase() === 'approved';
+            });
+        }
+
+        function handleFinalSubmit() {
+            const toast = document.getElementById('toast-success');
+            const toastMsg = document.getElementById('toast-message');
+
+            if (pendingAction === 'approve') {
+                if (pendingActionSource === 'doc') {
+                    toastMsg.innerText = `Dokumen ${activeCorrectionTarget} berhasil disetujui!`;
+                    setDocDecision(pendingActionDocKey, 'approved');
+                    patchCurrentEntryInStorage((entry) => {
+                        const state = entry.verificationState || getDefaultVerificationState();
+                        state.docs[pendingActionDocKey] = 'approved';
+                        entry.verificationState = state;
+                    });
+                    if (areAllAttachmentDocsApproved()) {
+                        updateStatusBadge('Done');
+                        updateEntryInStorage('Done', '');
+                        setOverallDecision('approve');
+                        patchCurrentEntryInStorage((entry) => {
+                            const state = entry.verificationState || getDefaultVerificationState();
+                            state.overall = 'approve';
+                            entry.verificationState = state;
+                        });
+                    } else {
+                        updateStatusBadge('Approved');
+                    }
+                } else {
+                    toastMsg.innerText = "Pengajuan beasiswa berhasil disetujui (Done)!";
+                    DOC_KEYS.forEach((docKey) => setDocDecision(docKey, 'approved'));
+                    setOverallDecision('approve');
+                    updateStatusBadge('Done');
+                    updateEntryInStorage('Done', '');
+                    patchCurrentEntryInStorage((entry) => {
+                        entry.verificationState = {
+                            docs: { kk: 'approved', raport: 'approved', ranking: 'approved' },
+                            overall: 'approve'
+                        };
+                    });
+                }
+                toast.className = "fixed top-4 right-4 bg-emerald-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+            } else if (pendingAction === 'reject') {
+                const rejectNotesInput = document.getElementById('reject-notes-input');
+                const rejectNotesError = document.getElementById('reject-notes-error');
+                const note = rejectNotesInput ? rejectNotesInput.value.trim() : '';
+                if (!note) {
+                    if (rejectNotesError) rejectNotesError.classList.remove('hidden');
+                    return;
+                }
+                pendingRejectNote = note;
+                toastMsg.innerText = "Pengajuan beasiswa berhasil ditolak (Rejected)!";
+                setOverallDecision('reject');
+                setAllActionButtonsDisabled(true);
+                updateStatusBadge('Rejected');
+                updateEntryInStorage('Rejected', `REJECTED: ${pendingRejectNote}`);
+                patchCurrentEntryInStorage((entry) => {
+                    const state = entry.verificationState || getDefaultVerificationState();
+                    state.overall = 'reject';
+                    entry.verificationState = state;
+                });
+                const badge = document.getElementById('verification-status-badge');
+                if (badge) badge.dataset.statusTip = `REJECTED: ${pendingRejectNote}`;
+                toast.className = "fixed top-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+            } else if (pendingAction === 'correction') {
+                toastMsg.innerText = `Status pengajuan berhasil diubah menjadi Koreksi (${selectedCorrectionType})!`;
+                if (pendingActionSource === 'doc') {
+                    setDocDecision(pendingActionDocKey, 'correction');
+                    const badge = document.getElementById('verification-status-badge');
+                    const currentTip = badge ? (badge.dataset.statusTip || '') : '';
+                    const nextTip = mergeCorrectionTip(currentTip, selectedCorrectionType.toUpperCase());
+                    if (badge) {
+                        badge.dataset.statusTip = nextTip;
+                    }
+                    updateEntryInStorage('Koreksi', nextTip);
+                    patchCurrentEntryInStorage((entry) => {
+                        const state = entry.verificationState || getDefaultVerificationState();
+                        state.docs[pendingActionDocKey] = 'correction';
+                        state.overall = 'correction';
+                        entry.verificationState = state;
+                    });
+                    setOverallDecision('correction');
+                } else {
+                    DOC_KEYS.forEach((docKey) => setDocDecision(docKey, 'correction'));
+                    setOverallDecision('correction');
+                    const allTips = 'KOREKSI KK, KOREKSI RAPOR, KOREKSI SURAT KET. RANKING';
+                    const badge = document.getElementById('verification-status-badge');
+                    if (badge) badge.dataset.statusTip = allTips;
+                    updateEntryInStorage('Koreksi', allTips);
+                    patchCurrentEntryInStorage((entry) => {
+                        entry.verificationState = {
+                            docs: { kk: 'correction', raport: 'correction', ranking: 'correction' },
+                            overall: 'correction'
+                        };
+                    });
+                }
+                updateStatusBadge(`Koreksi (${selectedCorrectionType})`);
+                toast.className = "fixed top-4 right-4 bg-amber-500 text-gray-900 px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+            }
+            closeConfirmModal();
+
+            toast.classList.remove('translate-y-[-100px]', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-[-100px]', 'opacity-0');
+            }, 2000);
+        }
+
         function clearSignature() {
             if (ctx && canvas) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -280,13 +689,48 @@
             document.getElementById('site').value = params.get('site') || 'AA PUSAT';
             document.getElementById('tahun-pengajuan').value = params.get('tahun') || '2025';
             
-            // Handle Empty Signature state for Belum Verified status
-            const status = params.get('status') || '';
-            if (status === 'Belum Verified') {
+            const status = params.get('status') || 'Belum Verified';
+            const statusTip = params.get('statusTip') || '';
+            const storedEntry = getCurrentEntryFromStorage();
+            const effectiveStatus = (storedEntry && storedEntry.status) ? storedEntry.status : status;
+            const effectiveStatusTip = (storedEntry && typeof storedEntry.statusTip === 'string') ? storedEntry.statusTip : statusTip;
+            const badge = document.getElementById('verification-status-badge');
+            if (badge) {
+                badge.dataset.statusTip = effectiveStatusTip;
+            }
+            if (effectiveStatus !== 'Done' && effectiveStatus !== 'Rejected' && !effectiveStatus.startsWith('Koreksi')) {
                 isSigned = false;
                 document.getElementById('default-signature').classList.add('hidden');
-                document.getElementById('sign-here-btn').classList.remove('hidden');
+                document.getElementById('upload-signature-area').classList.remove('hidden');
             }
+            
+            if (effectiveStatus === 'Done') {
+                updateStatusBadge('Done');
+                setAllActionButtonsDisabled(true);
+            } else if (effectiveStatus === 'Rejected') {
+                updateStatusBadge('Rejected');
+                setAllActionButtonsDisabled(true);
+            } else if (effectiveStatus.startsWith('Koreksi')) {
+                updateStatusBadge(effectiveStatus);
+                setAllActionButtonsDisabled(true);
+            } else {
+                updateStatusBadge('Belum Verified');
+            }
+
+            patchCurrentEntryInStorage((entry) => {
+                if (!entry.verificationState) {
+                    entry.verificationState = getDefaultVerificationState();
+                }
+                const state = entry.verificationState || getDefaultVerificationState();
+                DOC_KEYS.forEach((docKey) => {
+                    if (state.docs && state.docs[docKey]) {
+                        setDocDecision(docKey, state.docs[docKey]);
+                    }
+                });
+                if (state.overall && state.overall !== 'pending') {
+                    setOverallDecision(state.overall);
+                }
+            });
             
             // Build dynamic row
             const tbody = document.getElementById('children-table-body');
@@ -438,6 +882,31 @@
 <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded p-4 text-sm text-blue-800 dark:text-blue-200">
 <span class="font-bold">Informasi:</span> Tinjau kesesuaian berkas lampiran di bawah ini. Tekan tombol Approve atau Correction pada masing-masing dokumen.
                                 </div>
+<!-- Row 0: Kartu Keluarga -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center border-b border-gray-100 dark:border-gray-800 pb-6">
+<div class="lg:col-span-3">
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block">Kartu Keluarga <span class="text-red-500">*</span></span>
+<span class="text-xs text-gray-500">Fotocopy/scan KK terbaru</span>
+</div>
+<div class="lg:col-span-5">
+<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700 shadow-inner">
+<span class="material-symbols-outlined text-[#006837] text-2xl">picture_as_pdf</span>
+<div class="flex flex-col">
+<span class="text-sm text-gray-800 dark:text-gray-200 font-semibold truncate">kartu_keluarga.pdf</span>
+<span class="text-[10px] text-gray-400">0.9 MB • PDF</span>
+<a href="./kartu_keluarga.pdf" target="_blank" rel="noopener noreferrer" class="text-[11px] text-avian-green hover:underline font-semibold mt-1 inline-flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">visibility</span>View</a>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 flex gap-2">
+<button id="button-approve-kk" type="button" onclick="openConfirmModal('approve', 'Kartu Keluarga', 'doc')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
+</button>
+<button id="button-correction-kk" type="button" onclick="openConfirmModal('correction', 'kk', 'doc')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded font-bold text-xs transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[16px]">edit</span> Correction
+</button>
+</div>
+</div>
 <!-- Row 1: Rapor -->
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center border-b border-gray-100 dark:border-gray-800 pb-6">
 <div class="lg:col-span-3">
@@ -450,14 +919,15 @@
 <div class="flex flex-col">
 <span class="text-sm text-gray-800 dark:text-gray-200 font-semibold truncate">rapor_legalisir_final.pdf</span>
 <span class="text-[10px] text-gray-400">1.8 MB • PDF</span>
+<a href="./rapor_legalisir_final.pdf" target="_blank" rel="noopener noreferrer" class="text-[11px] text-avian-green hover:underline font-semibold mt-1 inline-flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">visibility</span>View</a>
 </div>
 </div>
 </div>
 <div class="lg:col-span-4 flex gap-2">
-<button type="button" onclick="openConfirmModal('approve', 'Rapor Legalisir')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors shadow-sm">
+<button id="button-approve-rapor" type="button" onclick="openConfirmModal('approve', 'Rapor Legalisir', 'doc')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors shadow-sm">
 <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
 </button>
-<button type="button" onclick="openConfirmModal('correction', 'raport')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded font-bold text-xs transition-colors shadow-sm">
+<button id="button-correction-rapor" type="button" onclick="openConfirmModal('correction', 'raport', 'doc')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded font-bold text-xs transition-colors shadow-sm">
 <span class="material-symbols-outlined text-[16px]">edit</span> Correction
 </button>
 </div>
@@ -474,14 +944,15 @@
 <div class="flex flex-col">
 <span class="text-sm text-gray-800 dark:text-gray-200 font-semibold truncate">surat_keterangan_ranking.pdf</span>
 <span class="text-[10px] text-gray-400">1.2 MB • PDF</span>
+<a href="./surat_keterangan_ranking.pdf" target="_blank" rel="noopener noreferrer" class="text-[11px] text-avian-green hover:underline font-semibold mt-1 inline-flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">visibility</span>View</a>
 </div>
 </div>
 </div>
 <div class="lg:col-span-4 flex gap-2">
-<button type="button" onclick="openConfirmModal('approve', 'Surat Ranking')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors shadow-sm">
+<button id="button-approve-ranking" type="button" onclick="openConfirmModal('approve', 'Surat Ranking', 'doc')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors shadow-sm">
 <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
 </button>
-<button type="button" onclick="openConfirmModal('correction', 'ranking')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded font-bold text-xs transition-colors shadow-sm">
+<button id="button-correction-ranking" type="button" onclick="openConfirmModal('correction', 'ranking', 'doc')" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded font-bold text-xs transition-colors shadow-sm">
 <span class="material-symbols-outlined text-[16px]">edit</span> Correction
 </button>
 </div>
@@ -495,11 +966,11 @@
 <h2 class="text-[#111418] dark:text-white text-lg font-bold">Approval Section</h2>
 </div>
 <div class="p-6 flex flex-wrap gap-8 justify-start items-start bg-gray-50 dark:bg-gray-900/50">
-        <!-- Box 1: HR Personnel Staff -->
+        <!-- Box 1: HR Operations Manager -->
         <div class="flex flex-col items-center">
             <div class="w-64 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded shadow-sm overflow-hidden text-center text-xs">
                 <div class="bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 uppercase">
-                    HR Personnel Staff
+                    HR Operations Manager
                 </div>
                 <div id="signature-container" class="h-32 flex flex-col items-center justify-center p-4 relative bg-white dark:bg-gray-850">
                     <!-- Default signature SVG when verified -->
@@ -510,10 +981,16 @@
                         <span class="text-[10px] text-gray-400 mt-1 block">Signed & Verified</span>
                     </div>
                     <!-- Signature drawing button when NOT verified -->
-                    <button id="sign-here-btn" type="button" onclick="openSignatureModal()" class="hidden flex flex-col items-center justify-center w-full h-full border border-dashed border-gray-300 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors group">
-                        <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green text-3xl mb-1">edit_square</span>
-                        <span class="text-xs text-gray-500 group-hover:text-avian-green font-semibold">Sign Here</span>
-                    </button>
+                    <div id="upload-signature-area" class="hidden flex flex-col items-center justify-center w-full h-full border border-dashed border-gray-300 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-800 rounded transition-colors">
+                        <button id="sign-here-btn" type="button" onclick="openSignatureModal()" class="flex flex-col items-center justify-center gap-2 w-full h-full bg-transparent text-gray-400 hover:text-avian-green transition-colors">
+                            <span class="material-symbols-outlined text-4xl">edit_square</span>
+                            <span class="text-xs font-semibold">Sign Here</span>
+                        </button>
+                        <label class="mt-2 text-xs text-gray-500 hover:text-avian-green cursor-pointer">
+                            <span>or click here to upload</span>
+                            <input id="signature-upload-input" type="file" accept="image/*" onchange="handleUploadSignature(event)" class="sr-only" />
+                        </label>
+                    </div>
                     <!-- Display canvas drawn signature -->
                     <img id="drawn-signature-img" class="hidden h-20 object-contain" alt="Signature" />
                 </div>
@@ -523,23 +1000,23 @@
             </div>
             <!-- Action buttons below box 1 -->
             <div class="flex rounded border border-gray-250 dark:border-gray-700 overflow-hidden shadow-sm mt-3 w-64">
-                <button type="button" onclick="openConfirmModal('approve')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors">
+                <button id="button-approve-overall" type="button" onclick="openConfirmModal('approve', '', 'overall')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors">
                     <span class="material-symbols-outlined text-sm">check_circle</span> Approve
                 </button>
-                <button type="button" onclick="openConfirmModal('correction')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-amber-500 hover:bg-amber-600 text-gray-905 text-xs font-bold transition-colors">
+                <button id="button-correction-overall" type="button" onclick="openConfirmModal('correction', '', 'overall')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-amber-500 hover:bg-amber-600 text-gray-905 text-xs font-bold transition-colors">
                     <span class="material-symbols-outlined text-sm">edit</span> Correction
                 </button>
-                <button type="button" onclick="openConfirmModal('reject')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors">
+                <button id="button-reject-overall" type="button" onclick="openConfirmModal('reject', '', 'overall')" class="flex-1 flex items-center justify-center gap-1 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors">
                     <span class="material-symbols-outlined text-sm">cancel</span> Reject
                 </button>
             </div>
         </div>
 
-        <!-- Box 2: HR Ops. Manager -->
+        <!-- Box 2: Finance Manager -->
         <div class="flex flex-col items-center">
             <div class="w-64 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded shadow-sm overflow-hidden text-center opacity-70">
                 <div class="bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 uppercase">
-                    HR Ops. Manager
+                    Finance Manager
                 </div>
                 <div class="h-32 flex flex-col items-center justify-center p-4 relative bg-gray-100 dark:bg-gray-800/30">
                     <span class="text-xs text-gray-400">Waiting Signature</span>
@@ -563,45 +1040,6 @@
 </div>
 </div>
 
-<!-- Modal Correction Selection -->
-<div id="correction-selection-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-    <div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 w-full max-w-md overflow-hidden flex flex-col">
-        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-[#1a2634]">
-            <h3 class="text-[#111418] dark:text-white text-lg font-bold flex items-center gap-2">
-                <span class="material-symbols-outlined text-amber-500">edit_note</span>
-                Pilih Jenis Koreksi
-            </h3>
-            <button type="button" onclick="closeCorrectionSelectionModal()" class="text-gray-500 hover:text-gray-700 dark:hover:text-white">
-                <span class="material-symbols-outlined">close</span>
-            </button>
-        </div>
-        <div class="p-6 flex flex-col gap-4">
-            <span class="text-sm text-gray-600 dark:text-gray-300 font-medium">Pilih jenis koreksi yang diajukan ke karyawan:</span>
-            <div class="flex flex-col gap-3">
-                <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-amber-500/5 transition-colors">
-                    <input type="radio" name="correction-type" id="corr-kk" class="text-amber-500 focus:ring-amber-500" value="KOREKSI KK">
-                    <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">KOREKSI KK</span>
-                </label>
-                <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-amber-500/5 transition-colors">
-                    <input type="radio" name="correction-type" id="corr-raport" class="text-amber-500 focus:ring-amber-500" value="KOREKSI RAPORT">
-                    <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">KOREKSI RAPORT</span>
-                </label>
-                <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-amber-500/5 transition-colors">
-                    <input type="radio" name="correction-type" id="corr-ranking" class="text-amber-500 focus:ring-amber-500" value="KOREKSI DOKUMEN RANKING">
-                    <span class="text-sm font-semibold text-gray-800 dark:text-gray-200">KOREKSI DOKUMEN RANKING</span>
-                </label>
-            </div>
-        </div>
-        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
-            <button type="button" onclick="closeCorrectionSelectionModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded text-sm font-semibold text-gray-800 dark:text-white transition-colors">
-                Batal
-            </button>
-            <button type="button" onclick="submitCorrectionSelection()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-gray-909 rounded text-sm font-semibold transition-colors">
-                Lanjutkan
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- Modal E-Signature -->
 <div id="signature-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -639,6 +1077,11 @@
             <span class="material-symbols-outlined text-4xl text-amber-500 mb-2">warning</span>
             <h4 id="confirm-modal-title" class="text-base font-bold text-[#111418] dark:text-white mb-2">Konfirmasi Tindakan</h4>
             <p id="confirm-modal-desc" class="text-sm text-gray-500 dark:text-gray-300 mb-6">Apakah anda yakin ingin melakukan tindakan ini?</p>
+            <div id="reject-notes-wrap" class="hidden text-left mb-4">
+                <label for="reject-notes-input" class="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">Notes Penolakan <span class="text-red-500">*</span></label>
+                <textarea id="reject-notes-input" rows="3" class="w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100 p-2" placeholder="Contoh: Dokumen utama tidak valid / tidak terbaca."></textarea>
+                <p id="reject-notes-error" class="hidden text-xs text-red-600 mt-1">Notes wajib diisi untuk proses reject.</p>
+            </div>
             <div class="flex items-center justify-center gap-3">
                 <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 text-gray-700 dark:text-gray-300 rounded font-semibold text-sm transition-colors min-w-[80px]">
                     Batal
