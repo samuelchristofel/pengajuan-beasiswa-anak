@@ -133,13 +133,13 @@
 <span class="text-sm font-medium sidebar-text">Home</span>
 </a>
 <div class="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Main Menu</div>
-<a class="flex items-center gap-3 px-4 py-3 bg-avian-green text-white border-l-4 border-white transition-colors whitespace-nowrap" href="index.html">
-<span class="material-symbols-outlined text-white text-[20px] fill-1">dashboard</span>
-<span class="text-sm font-bold sidebar-text">Main Menu</span>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="index.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">dashboard</span>
+<span class="text-sm font-medium sidebar-text">Main Menu</span>
 </a>
-<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="main-menu-2.html">
-<span class="material-symbols-outlined text-gray-300 text-[20px]">view_list</span>
-<span class="text-sm font-medium sidebar-text">Main Menu 2</span>
+<a class="flex items-center gap-3 px-4 py-3 bg-avian-green text-white border-l-4 border-white transition-colors whitespace-nowrap" href="main-menu-2.html">
+<span class="material-symbols-outlined text-white text-[20px] fill-1">view_list</span>
+<span class="text-sm font-bold sidebar-text">Main Menu 2</span>
 </a>
 <a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="master-beasiswa.html">
 <span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
@@ -428,6 +428,17 @@
                             <span class="material-symbols-outlined text-[18px]">file_download</span>
                        </button>`
                     : '';
+                let anakHtml = entry.anak;
+                let hasMultipleChildren = entry.children && entry.children.length > 1;
+                
+                if (hasMultipleChildren) {
+                    anakHtml += `
+                        <button onclick="toggleExpand('${entry.id}')" class="ml-1 text-avian-green hover:text-green-800 transition-colors focus:outline-none">
+                            <span class="material-symbols-outlined text-[16px] align-middle" id="icon-${entry.id}">expand_more</span>
+                        </button>
+                    `;
+                }
+
                 html += `
                     <tr class="hover:bg-gray-50 transition-colors group">
                         <td class="px-2 py-3 text-gray-800 text-center border-r border-gray-200">${startIndex + index + 1}</td>
@@ -440,16 +451,38 @@
                         <td class="px-2 py-3 font-medium text-gray-800 border-r border-gray-200 text-center">${entry.nik}</td>
                         <td class="px-2 py-3 text-gray-800 font-medium border-r border-gray-200">${entry.karyawan}</td>
                         <td class="px-2 py-3 text-gray-600 border-r border-gray-200">${entry.bagian}</td>
-                        <td class="px-2 py-3 text-gray-800 border-r border-gray-200">${entry.anak}</td>
+                        <td class="px-2 py-3 text-gray-800 border-r border-gray-200">${anakHtml}</td>
                         <td class="px-2 py-3 text-gray-600 text-center border-r border-gray-200">${entry.peringkat}</td>
                         <td class="px-2 py-3 text-gray-600 text-center border-r border-gray-200">${entry.semester}</td>
                         <td class="px-2 py-3 text-gray-600 text-center border-r border-gray-200">${entry.jenjang}</td>
-                        <td class="px-2 py-3 font-medium text-gray-800 text-right border-r border-gray-200 whitespace-nowrap">${formatCurrency(entry.jumlah)}</td>
+                        <td class="px-2 py-3 font-medium text-gray-800 text-right border-r border-gray-200 whitespace-nowrap">${formatCurrency(entry.jumlah || (entry.children && entry.children[0] && entry.children[0].nominal) || 0)}</td>
                         <td class="px-2 py-3 text-center border-r border-gray-200 whitespace-nowrap">${getStatusBadge(entry)}</td>
                         <td class="px-2 py-3 text-center sticky right-0 bg-white shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)] group-hover:bg-gray-50 z-10">
                             <div class="flex items-center justify-center gap-1 min-h-[18px]">${actionButton}</div>
                         </td>
                     </tr>`;
+                
+                if (hasMultipleChildren) {
+                    for (let i = 1; i < entry.children.length; i++) {
+                        const child = entry.children[i];
+                        html += `
+                            <tr class="sub-${entry.id} hidden bg-gray-50/80 hover:bg-gray-100 transition-colors border-b border-gray-100">
+                                <td colspan="6" class="px-2 py-3 border-r border-gray-200"></td>
+                                <td class="px-2 py-3 text-gray-800 border-r border-gray-200 pl-4 border-l-2 border-l-avian-green">
+                                    <div class="flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-gray-400 text-[16px]">subdirectory_arrow_right</span>
+                                        ${child.nama}
+                                    </div>
+                                </td>
+                                <td class="px-2 py-3 text-gray-600 text-center border-r border-gray-200">${child.peringkat}</td>
+                                <td class="px-2 py-3 text-gray-600 text-center border-r border-gray-200">${child.semester}</td>
+                                <td class="px-2 py-3 text-gray-600 text-center border-r border-gray-200">${child.jenjang}</td>
+                                <td class="px-2 py-3 font-medium text-gray-800 text-right border-r border-gray-200 whitespace-nowrap">${formatCurrency(child.nominal || 0)}</td>
+                                <td colspan="2" class="px-2 py-3 text-center border-gray-200"></td>
+                            </tr>
+                        `;
+                    }
+                }
             });
         }
 
@@ -480,6 +513,25 @@
         document.getElementById('search-input')?.addEventListener('input', updateSearchValue);
 
         renderTable();
+    }
+
+    function toggleExpand(id) {
+        const rows = document.querySelectorAll(`.sub-${id}`);
+        const icon = document.getElementById(`icon-${id}`);
+        let isHidden = false;
+        
+        rows.forEach(row => {
+            if (row.classList.contains('hidden')) {
+                row.classList.remove('hidden');
+                isHidden = true;
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+        
+        if (icon) {
+            icon.innerText = isHidden ? 'expand_less' : 'expand_more';
+        }
     }
 
     window.applyTableFilters = applyTableFilters;

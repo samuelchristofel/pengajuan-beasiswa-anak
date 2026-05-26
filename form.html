@@ -199,7 +199,7 @@
             
             const tr = document.createElement('tr');
             tr.id = rowId;
-            tr.className = "hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors";
+            tr.className = "child-data-row hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors";
             
             const nik = document.getElementById('nik').value || "AV-20230045";
             
@@ -250,6 +250,49 @@
             
             tbody.appendChild(tr);
             
+            // Create corresponding document upload section as a table row
+            const childIndex = Math.floor(tbody.children.length / 2) + 1; // since we add 2 rows per child
+            const docTr = document.createElement('tr');
+            docTr.id = 'doc-' + rowId;
+            docTr.className = "bg-blue-50/30 dark:bg-blue-900/10 border-b-2 border-gray-200 dark:border-gray-700";
+            docTr.innerHTML = `
+                <td colspan="7" class="p-4">
+                    <div class="flex flex-col gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Rapor -->
+                            <div>
+                                <span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block mb-2">Fotocopy Rapor Legalisir <span class="text-red-500">*</span></span>
+                                <div class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green">
+                                    <div class="flex flex-col items-center justify-center pt-4 pb-5 upload-indicator">
+                                        <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-1 text-2xl transition-colors">cloud_upload</span>
+                                        <p class="mb-1 text-xs text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span></p>
+                                    </div>
+                                    <input class="hidden" type="file"/>
+                                </div>
+                            </div>
+                            <!-- Ranking -->
+                            <div>
+                                <span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block mb-2">Surat Keterangan Ranking <span class="text-red-500">*</span></span>
+                                <div class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green">
+                                    <div class="flex flex-col items-center justify-center pt-4 pb-5 upload-indicator">
+                                        <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-1 text-2xl transition-colors">cloud_upload</span>
+                                        <p class="mb-1 text-xs text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span></p>
+                                    </div>
+                                    <input class="hidden" type="file"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(docTr);
+            
+            
+            // Trigger it once if initial data is present
+            if(initialData && initialData.nama) {
+                // name Display logic removed as per user request
+            }
+            
             if (initialData) {
                 const nameInput = tr.querySelector('.child-name-input');
                 const tahunAjaranEl = tr.querySelector('.tahun-ajaran-select');
@@ -273,6 +316,10 @@
             const row = document.getElementById(rowId);
             if (row) {
                 row.remove();
+            }
+            const docSection = document.getElementById('doc-' + rowId);
+            if (docSection) {
+                docSection.remove();
             }
         }
 
@@ -331,7 +378,7 @@
         function handleSubmit(event) {
             event.preventDefault();
 
-            const rows = document.querySelectorAll('#children-table-body tr');
+            const rows = document.querySelectorAll('#children-table-body tr.child-data-row');
             if (rows.length === 0) {
                 alert('Silakan tambah minimal satu anak untuk diajukan.');
                 return;
@@ -405,12 +452,13 @@
                 nik: document.getElementById('nik').value,
                 karyawan: document.getElementById('karyawan').value,
                 bagian: document.getElementById('bagian').value,
-                anak: children[0]?.nama || '',
+                children: children,
+                anak: children.length > 1 ? `${children[0]?.nama || ''} & ${children.length - 1} lainnya` : (children[0]?.nama || ''),
                 peringkat: children[0]?.peringkat || '',
                 semester: children[0]?.semester || '',
                 jenjang: children[0]?.jenjang || '',
                 jumlah: totalAmount,
-                status: 'Belum Verified',
+                status: 'IN PROGRESS',
                 statusTip: ''
             };
 
@@ -532,6 +580,10 @@
 <span class="material-symbols-outlined text-gray-300 text-[20px]">dashboard</span>
 <span class="text-sm font-medium sidebar-text">Main Menu</span>
 </a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="main-menu-2.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">view_list</span>
+<span class="text-sm font-medium sidebar-text">Main Menu 2</span>
+</a>
 <a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="master-beasiswa.html">
 <span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
 <span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
@@ -638,50 +690,7 @@
 </div>
 </div>
 
-<!-- Upload Documents Card -->
-<div class="bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-<div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a2634]">
-<h2 class="text-[#111418] dark:text-white text-lg font-bold flex items-center gap-2">
-<span class="material-symbols-outlined text-avian-green">upload_file</span>
-                                        Lampiran Dokumen
-                                    </h2>
-</div>
-<div class="p-6 flex flex-col gap-6">
-<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded p-4 text-sm text-blue-800 dark:text-blue-200">
-<span class="font-bold">Catatan:</span> Format yang diterima adalah PDF atau JPG/PNG dengan ukuran maksimal 2MB per file.
-                                </div>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start border-b border-gray-100 dark:border-gray-800 pb-6 last:border-0 last:pb-0">
-<div class="md:col-span-1">
-<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block">Fotocopy Rapor Legalisir <span class="text-red-500">*</span></span>
-<span class="text-xs text-gray-500">Halaman nilai semester terakhir</span>
-</div>
-<div class="md:col-span-2">
-<div class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green">
-<div class="flex flex-col items-center justify-center pt-5 pb-6 upload-indicator">
-<span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-2 text-3xl transition-colors">cloud_upload</span>
-<p class="mb-1 text-sm text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span> atau drag and drop</p>
-</div>
-<input class="hidden" type="file"/>
-</div>
-</div>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-<div class="md:col-span-1">
-<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block">Surat Keterangan Ranking <span class="text-red-500">*</span></span>
-<span class="text-xs text-gray-500">Dari Sekolah</span>
-</div>
-<div class="md:col-span-2">
-<div class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green">
-<div class="flex flex-col items-center justify-center pt-5 pb-6 upload-indicator">
-<span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-2 text-3xl transition-colors">cloud_upload</span>
-<p class="mb-1 text-sm text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span> atau drag and drop</p>
-</div>
-<input class="hidden" type="file"/>
-</div>
-</div>
-</div>
-</div>
-</div>
+
 <div class="flex flex-col gap-6 pt-2">
 <label class="flex items-start gap-3 cursor-pointer group">
 <input id="pernyataan" class="mt-1 rounded border-gray-300 text-avian-green focus:ring-avian-green" type="checkbox"/>
