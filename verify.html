@@ -89,7 +89,7 @@
             document.getElementById('kk-modal').classList.add('hidden');
         }
 
-        const STORAGE_KEY = 'avianScholarshipEntries';
+        const STORAGE_KEY = 'avianScholarshipEntries_v2';
         const DOC_KEYS = ['kk', 'raport', 'ranking'];
 
         function normalizeDocTarget(target) {
@@ -809,7 +809,7 @@
             document.getElementById('site').value = params.get('site') || 'AA PUSAT';
             document.getElementById('tahun-pengajuan').value = params.get('tahun') || '2025';
             
-            const status = params.get('status') || 'On Process (Helmi Salampessy)';
+            const status = params.get('status') || 'Belum Verified';
             const statusTip = params.get('statusTip') || '';
             const storedEntry = getCurrentEntryFromStorage();
             const effectiveStatus = (storedEntry && storedEntry.status) ? storedEntry.status : status;
@@ -1097,7 +1097,7 @@
                 });
             }
             
-            if (effectiveStatus !== 'On Process (Helmi Salampessy)' && effectiveStatus !== 'IN PROGRESS') {
+            if (effectiveStatus !== 'On Process (Helmi Salampessy)' && effectiveStatus !== 'IN PROGRESS' && effectiveStatus !== 'Belum Verified') {
                 setAllActionButtonsDisabled(true);
             }
         });
