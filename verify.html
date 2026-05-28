@@ -232,6 +232,59 @@
             btn.classList.add('bg-gray-200', 'text-gray-500');
         }
 
+        let docCorrectionNotes = {};
+        let currentDocCorrectionContext = null;
+
+        function showDocCorrectionNote(docKey, childIdx, note) {
+            const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
+            const noteKey = childIdx !== null ? `${safeDocKey}_${childIdx}` : safeDocKey;
+            const noteEl = document.getElementById(`doc-note-${noteKey}`);
+            if (noteEl && note) {
+                noteEl.innerHTML = `<span class="font-bold">Catatan Koreksi:</span> ${note}`;
+                noteEl.classList.remove('hidden');
+            }
+        }
+        function hideDocCorrectionNote(docKey, childIdx) {
+            const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
+            const noteKey = childIdx !== null ? `${safeDocKey}_${childIdx}` : safeDocKey;
+            const noteEl = document.getElementById(`doc-note-${noteKey}`);
+            if (noteEl) {
+                noteEl.classList.add('hidden');
+                noteEl.innerHTML = '';
+            }
+        }
+
+        function openDocCorrectionModal(docKey, btn, childIdx) {
+            const noteKey = childIdx !== null ? `${docKey}_${childIdx}` : docKey;
+            currentDocCorrectionContext = { docKey, btn, childIdx, noteKey };
+            
+            pendingAction = 'doc_correction_modal';
+            
+            const titleEl = document.getElementById('confirm-modal-title');
+            const descEl = document.getElementById('confirm-modal-desc');
+            const confirmBtn = document.getElementById('confirm-modal-submit');
+            const actionNotesWrap = document.getElementById('action-notes-wrap');
+            const actionNotesInput = document.getElementById('action-notes-input');
+            const actionNotesError = document.getElementById('action-notes-error');
+            const actionNotesLabel = document.getElementById('action-notes-label');
+            
+            titleEl.innerText = "Catatan Koreksi Dokumen";
+            descEl.innerText = `Silakan masukkan alasan koreksi untuk dokumen ${docKey.toUpperCase()}.`;
+            
+            if (actionNotesWrap) actionNotesWrap.classList.remove('hidden');
+            if (actionNotesLabel) actionNotesLabel.innerHTML = 'Catatan Koreksi <span class="text-red-500">*</span>';
+            if (actionNotesInput) {
+                actionNotesInput.value = docCorrectionNotes[noteKey] || '';
+                actionNotesInput.placeholder = 'Contoh: Halaman nilai buram / terpotong...';
+            }
+            if (actionNotesError) actionNotesError.classList.add('hidden');
+            
+            confirmBtn.innerText = "Simpan & Koreksi";
+            confirmBtn.className = "px-4 py-2 text-gray-900 rounded text-sm font-semibold shadow-sm transition-colors bg-amber-500 hover:bg-amber-600";
+            
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+
         window.toggleDocDecision = function(docKey, decision, btnElement = null, childIdx = null) {
             let approveBtn, correctionBtn;
             if (btnElement) {
@@ -272,17 +325,16 @@
                     approveBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">check_circle</span> Approved';
                     muteBtn(correctionBtn);
                     finalDecision = 'approved';
+                    hideDocCorrectionNote(docKey, childIdx);
                 }
             } else if (decision === 'correction') {
                 if (isCurrentlyCorrection) {
                     resetApproveBtn(approveBtn);
                     resetCorrectionBtn(correctionBtn);
+                    hideDocCorrectionNote(docKey, childIdx);
                 } else {
-                    resetCorrectionBtn(correctionBtn);
-                    const labels = {kk: 'KOREKSI KK', rapor: 'KOREKSI RAPOR', ranking: 'KOREKSI SURAT RANKING'};
-                    correctionBtn.innerHTML = `<span class="material-symbols-outlined text-[16px]">edit</span> ${labels[docKey]}`;
-                    muteBtn(approveBtn);
-                    finalDecision = 'correction';
+                    openDocCorrectionModal(docKey, btnElement, childIdx);
+                    return;
                 }
             }
 
@@ -659,6 +711,62 @@
             const notesError = document.getElementById('action-notes-error');
             const actionNote = notesInput ? notesInput.value.trim() : '';
 
+            if (pendingAction === 'doc_correction_modal') {
+                if (!actionNote) {
+                    if (notesError) notesError.classList.remove('hidden');
+                    return;
+                }
+                const { docKey, btn, childIdx, noteKey } = currentDocCorrectionContext;
+                docCorrectionNotes[noteKey] = actionNote;
+                
+                toastMsg.innerText = `Catatan koreksi untuk dokumen ${docKey.toUpperCase()} berhasil disimpan!`;
+                
+                let approveBtn, correctionBtn;
+                if (btn) {
+                    const container = btn.closest('.flex.justify-end') || btn.parentElement;
+                    approveBtn = container.querySelector(`.button-approve-${docKey}`);
+                    correctionBtn = container.querySelector(`.button-correction-${docKey}`);
+                } else {
+                    approveBtn = document.querySelector(`.button-approve-${docKey}`);
+                    correctionBtn = document.querySelector(`.button-correction-${docKey}`);
+                }
+                
+                if (correctionBtn) {
+                    correctionBtn.className = `button-correction-${docKey} px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center`;
+                    const labels = {kk: 'KOREKSI KK', rapor: 'KOREKSI RAPOR', ranking: 'KOREKSI SURAT RANKING'};
+                    correctionBtn.innerHTML = `<span class="material-symbols-outlined text-[16px]">edit</span> ${labels[docKey] || 'KOREKSI'}`;
+                }
+                if (approveBtn) {
+                    approveBtn.className = `${approveBtn.className.split(' ')[0]} px-6 py-2.5 bg-gray-200 text-gray-500 rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center opacity-50`;
+                }
+                
+                if (typeof patchCurrentEntryInStorage === 'function') {
+                    patchCurrentEntryInStorage((entry) => {
+                        const state = entry.verificationState || getDefaultVerificationState();
+                        const realDocKey = docKey === 'rapor' ? 'raport' : docKey;
+                        if (childIdx !== null) {
+                            state.childDocs = state.childDocs || {};
+                            state.childDocs[childIdx] = state.childDocs[childIdx] || {};
+                            state.childDocs[childIdx][realDocKey] = 'correction';
+                        } else {
+                            state.docs[realDocKey] = 'correction';
+                        }
+                        entry.verificationState = state;
+                    });
+                }
+                
+                showDocCorrectionNote(docKey, childIdx, actionNote);
+                
+                closeConfirmModal();
+                toast.className = "fixed top-4 right-4 bg-amber-500 text-gray-900 px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+                
+                setTimeout(() => {
+                    toast.classList.remove('translate-y-0', 'opacity-100');
+                    toast.classList.add('translate-y-[-100px]', 'opacity-0');
+                }, 2000);
+                return;
+            }
+
             if (pendingAction === 'approve') {
                 if (pendingActionSource === 'doc') {
                     toastMsg.innerText = `Dokumen ${activeCorrectionTarget} berhasil disetujui!`;
@@ -939,19 +1047,22 @@
                                             <div class="flex flex-col">
                                                 <span class="text-sm font-bold text-gray-800 dark:text-gray-100">rapor_legalisir_final.pdf</span>
                                                 <span class="text-xs text-gray-400 mb-1">1.8 MB • PDF</span>
-                                                <a href="#" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
+                                                <a href="dummy.pdf" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
                                                     <span class="material-symbols-outlined text-[14px]">visibility</span> View
                                                 </a>
                                             </div>
                                         </div>
                                         
-                                        <div class="flex-1 flex justify-end gap-3">
-                                            <button type="button" onclick="toggleDocDecision('rapor', 'approved', this, ${idx})" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                                <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
-                                            </button>
-                                            <button type="button" onclick="toggleDocDecision('rapor', 'correction', this, ${idx})" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                                <span class="material-symbols-outlined text-[16px]">edit</span> Correction
-                                            </button>
+                                        <div class="flex-1 flex flex-col items-end gap-2">
+                                            <div class="flex justify-end gap-3 w-full">
+                                                <button type="button" onclick="toggleDocDecision('rapor', 'approved', this, ${idx})" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                    <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
+                                                </button>
+                                                <button type="button" onclick="toggleDocDecision('rapor', 'correction', this, ${idx})" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                    <span class="material-symbols-outlined text-[16px]">edit</span> Correction
+                                                </button>
+                                            </div>
+                                            <div id="doc-note-rapor_${idx}" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 rounded shadow-sm text-left"></div>
                                         </div>
                                     </div>
                                     
@@ -967,19 +1078,22 @@
                                             <div class="flex flex-col">
                                                 <span class="text-sm font-bold text-gray-800 dark:text-gray-100">surat_ket_ranking_${child.nama.replace(/\s+/g, '_')}.pdf</span>
                                                 <span class="text-xs text-gray-400 mb-1">1.2 MB • PDF</span>
-                                                <a href="#" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
+                                                <a href="dummy.pdf" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
                                                     <span class="material-symbols-outlined text-[14px]">visibility</span> View
                                                 </a>
                                             </div>
                                         </div>
                                         
-                                        <div class="flex-1 flex justify-end gap-3">
-                                            <button type="button" onclick="toggleDocDecision('ranking', 'approved', this, ${idx})" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                                <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
-                                            </button>
-                                            <button type="button" onclick="toggleDocDecision('ranking', 'correction', this, ${idx})" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                                <span class="material-symbols-outlined text-[16px]">edit</span> Correction
-                                            </button>
+                                        <div class="flex-1 flex flex-col items-end gap-2">
+                                            <div class="flex justify-end gap-3 w-full">
+                                                <button type="button" onclick="toggleDocDecision('ranking', 'approved', this, ${idx})" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                    <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
+                                                </button>
+                                                <button type="button" onclick="toggleDocDecision('ranking', 'correction', this, ${idx})" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                    <span class="material-symbols-outlined text-[16px]">edit</span> Correction
+                                                </button>
+                                            </div>
+                                            <div id="doc-note-ranking_${idx}" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 rounded shadow-sm text-left"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -1027,19 +1141,22 @@
                                         <div class="flex flex-col">
                                             <span class="text-sm font-bold text-gray-800 dark:text-gray-100">rapor_legalisir.pdf</span>
                                             <span class="text-xs text-gray-400 mb-1">1.8 MB • PDF</span>
-                                            <a href="#" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
+                                            <a href="dummy.pdf" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
                                                 <span class="material-symbols-outlined text-[14px]">visibility</span> View
                                             </a>
                                         </div>
                                     </div>
                                     
-                                    <div class="flex-1 flex justify-end gap-3">
-                                        <button type="button" onclick="toggleDocDecision('rapor', 'approved', this, 0)" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                            <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
-                                        </button>
-                                        <button type="button" onclick="toggleDocDecision('rapor', 'correction', this, 0)" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                            <span class="material-symbols-outlined text-[16px]">edit</span> Correction
-                                        </button>
+                                    <div class="flex-1 flex flex-col items-end gap-2">
+                                        <div class="flex justify-end gap-3 w-full">
+                                            <button type="button" onclick="toggleDocDecision('rapor', 'approved', this, 0)" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
+                                            </button>
+                                            <button type="button" onclick="toggleDocDecision('rapor', 'correction', this, 0)" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                <span class="material-symbols-outlined text-[16px]">edit</span> Correction
+                                            </button>
+                                        </div>
+                                        <div id="doc-note-rapor_0" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 rounded shadow-sm text-left"></div>
                                     </div>
                                 </div>
                                 
@@ -1055,19 +1172,22 @@
                                         <div class="flex flex-col">
                                             <span class="text-sm font-bold text-gray-800 dark:text-gray-100">surat_keterangan_ranking.pdf</span>
                                             <span class="text-xs text-gray-400 mb-1">1.2 MB • PDF</span>
-                                            <a href="#" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
+                                            <a href="dummy.pdf" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-[#009262] hover:text-emerald-700 flex items-center gap-1">
                                                 <span class="material-symbols-outlined text-[14px]">visibility</span> View
                                             </a>
                                         </div>
                                     </div>
                                     
-                                    <div class="flex-1 flex justify-end gap-3">
-                                        <button type="button" onclick="toggleDocDecision('ranking', 'approved', this, 0)" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                            <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
-                                        </button>
-                                        <button type="button" onclick="toggleDocDecision('ranking', 'correction', this, 0)" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
-                                            <span class="material-symbols-outlined text-[16px]">edit</span> Correction
-                                        </button>
+                                    <div class="flex-1 flex flex-col items-end gap-2">
+                                        <div class="flex justify-end gap-3 w-full">
+                                            <button type="button" onclick="toggleDocDecision('ranking', 'approved', this, 0)" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
+                                            </button>
+                                            <button type="button" onclick="toggleDocDecision('ranking', 'correction', this, 0)" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
+                                                <span class="material-symbols-outlined text-[16px]">edit</span> Correction
+                                            </button>
+                                        </div>
+                                        <div id="doc-note-ranking_0" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 rounded shadow-sm text-left"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1091,6 +1211,12 @@
                             if (childState[docKey]) {
                                 const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
                                 setDocDecision(docKey, childState[docKey], document.querySelectorAll(`.button-approve-${safeDocKey}`)[idx]);
+                                if (childState[docKey] === 'correction') {
+                                    const noteKey = `${safeDocKey}_${idx}`;
+                                    if (docCorrectionNotes[noteKey]) {
+                                        showDocCorrectionNote(safeDocKey, idx, docCorrectionNotes[noteKey]);
+                                    }
+                                }
                             }
                         });
                     }
