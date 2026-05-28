@@ -59,6 +59,7 @@
         let selectedCorrectionType = '';
         let pendingRejectNote = '';
         let isSigned = true; // default true for Done or Koreksi, false for IN PROGRESS
+        let autoSubmitAfterSignature = false;
         
         const kkData = {
             "12345": { kepala: "BUDI SANTOSO", members: [ { nama: "Budi Santoso", nik: "3275012304910002", jk: "LAKI-LAKI", tempat: "BANDUNG", tgl: "19-10-1985", agama: "ISLAM", pend: "SLTA", hubungan: "KEPALA KELUARGA", ayah: "SUPARMAN", ibu: "SITI AMINAH" } ] },
@@ -134,10 +135,31 @@
                 activeCorrectionTarget = '';
             }
             
-            if (action === 'approve' && !target && !isSigned) {
-                // If they haven't signed yet, force drawing the e-signature first
-                openSignatureModal();
-                return;
+            if (action === 'approve' && source === 'overall') {
+                // Option 3: Validasi persetujuan
+                let allDocsApproved = true;
+                const docKeys = ['rapor', 'ranking', 'kk'];
+                docKeys.forEach(k => {
+                    const btn = document.querySelector(`.button-approve-${k}`);
+                    if (btn && !btn.innerText.includes('Approved')) allDocsApproved = false;
+                });
+                
+                let anyChildVerified = false;
+                document.querySelectorAll('.child-status').forEach(td => {
+                    if (td.innerText.trim() === 'VERIFIED') anyChildVerified = true;
+                });
+                
+                if (!allDocsApproved || !anyChildVerified) {
+                    const toast = document.getElementById('toast-success');
+                    const toastMsg = document.getElementById('toast-message');
+                    toast.className = "fixed top-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
+                    toastMsg.innerText = !anyChildVerified ? "Gagal: Anda belum memverifikasi anak!" : "Gagal: Masih ada dokumen yang belum di-Approve!";
+                    setTimeout(() => {
+                        toast.classList.remove('translate-y-0', 'opacity-100');
+                        toast.classList.add('-translate-y-4', 'opacity-0');
+                    }, 4000);
+                    return;
+                }
             }
 
             const titleEl = document.getElementById('confirm-modal-title');
@@ -210,6 +232,76 @@
             btn.classList.add('bg-gray-200', 'text-gray-500');
         }
 
+        window.toggleDocDecision = function(docKey, decision, btnElement = null, childIdx = null) {
+            let approveBtn, correctionBtn;
+            if (btnElement) {
+                const container = btnElement.closest('.flex.justify-end') || btnElement.parentElement;
+                approveBtn = container.querySelector(`.button-approve-${docKey}`);
+                correctionBtn = container.querySelector(`.button-correction-${docKey}`);
+            } else {
+                approveBtn = document.querySelector(`.button-approve-${docKey}`);
+                correctionBtn = document.querySelector(`.button-correction-${docKey}`);
+            }
+            if (!approveBtn || !correctionBtn) return;
+            
+            const isCurrentlyApproved = approveBtn.innerText.includes('Approved');
+            const isCurrentlyCorrection = correctionBtn.innerText.includes('KOREKSI');
+            
+            const resetApproveBtn = (btn) => {
+                btn.className = `button-approve-${docKey} px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center`;
+                btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">check_circle</span> Approve';
+                btn.disabled = false;
+            };
+            const resetCorrectionBtn = (btn) => {
+                btn.className = `button-correction-${docKey} px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center`;
+                btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">edit</span> Correction';
+                btn.disabled = false;
+            };
+            const muteBtn = (btn) => {
+                btn.className = `${btn.className.split(' ')[0]} px-6 py-2.5 bg-gray-200 text-gray-500 rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center opacity-50`;
+            };
+            
+            let finalDecision = 'pending';
+            
+            if (decision === 'approved') {
+                if (isCurrentlyApproved) {
+                    resetApproveBtn(approveBtn);
+                    resetCorrectionBtn(correctionBtn);
+                } else {
+                    resetApproveBtn(approveBtn);
+                    approveBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">check_circle</span> Approved';
+                    muteBtn(correctionBtn);
+                    finalDecision = 'approved';
+                }
+            } else if (decision === 'correction') {
+                if (isCurrentlyCorrection) {
+                    resetApproveBtn(approveBtn);
+                    resetCorrectionBtn(correctionBtn);
+                } else {
+                    resetCorrectionBtn(correctionBtn);
+                    const labels = {kk: 'KOREKSI KK', rapor: 'KOREKSI RAPOR', ranking: 'KOREKSI SURAT RANKING'};
+                    correctionBtn.innerHTML = `<span class="material-symbols-outlined text-[16px]">edit</span> ${labels[docKey]}`;
+                    muteBtn(approveBtn);
+                    finalDecision = 'correction';
+                }
+            }
+
+            if (typeof patchCurrentEntryInStorage === 'function') {
+                patchCurrentEntryInStorage((entry) => {
+                    const state = entry.verificationState || getDefaultVerificationState();
+                    const realDocKey = docKey === 'rapor' ? 'raport' : docKey;
+                    if (childIdx !== null) {
+                        state.childDocs = state.childDocs || {};
+                        state.childDocs[childIdx] = state.childDocs[childIdx] || {};
+                        state.childDocs[childIdx][realDocKey] = finalDecision;
+                    } else {
+                        state.docs[realDocKey] = finalDecision;
+                    }
+                    entry.verificationState = state;
+                });
+            }
+        };
+
         function setButtonReadOnly(action, target, source, typeLabel) {
             const disableButton = (btn, shouldMute = false) => {
                 if (!btn) return;
@@ -219,29 +311,7 @@
             };
 
             if (action === 'approve') {
-                if (source === 'doc') {
-                    if (target === 'raport') {
-                        document.querySelectorAll('.button-approve-rapor').forEach(btn => {
-                            btn.innerText = 'Approved';
-                            disableButton(btn);
-                        });
-                        document.querySelectorAll('.button-correction-rapor').forEach(btn => disableButton(btn, true));
-                    }
-                    if (target === 'ranking') {
-                        document.querySelectorAll('.button-approve-ranking').forEach(btn => {
-                            btn.innerText = 'Approved';
-                            disableButton(btn);
-                        });
-                        document.querySelectorAll('.button-correction-ranking').forEach(btn => disableButton(btn, true));
-                    }
-                    if (target === 'kk') {
-                        document.querySelectorAll('.button-approve-kk').forEach(btn => {
-                            btn.innerText = 'Approved';
-                            disableButton(btn);
-                        });
-                        document.querySelectorAll('.button-correction-kk').forEach(btn => disableButton(btn, true));
-                    }
-                } else {
+                if (source === 'overall') {
                     const btn = document.getElementById('button-approve-overall');
                     if (btn) {
                         btn.innerText = 'Approved';
@@ -251,29 +321,7 @@
             }
 
             if (action === 'correction') {
-                if (source === 'doc') {
-                    if (target === 'raport') {
-                        document.querySelectorAll('.button-correction-rapor').forEach(btn => {
-                            btn.innerText = typeLabel || 'KOREKSI RAPORT';
-                            disableButton(btn);
-                        });
-                        document.querySelectorAll('.button-approve-rapor').forEach(btn => disableButton(btn, true));
-                    }
-                    if (target === 'ranking') {
-                        document.querySelectorAll('.button-correction-ranking').forEach(btn => {
-                            btn.innerText = typeLabel || 'KOREKSI SURAT KET. RANKING';
-                            disableButton(btn);
-                        });
-                        document.querySelectorAll('.button-approve-ranking').forEach(btn => disableButton(btn, true));
-                    }
-                    if (target === 'kk') {
-                        document.querySelectorAll('.button-correction-kk').forEach(btn => {
-                            btn.innerText = typeLabel || 'KOREKSI KK';
-                            disableButton(btn);
-                        });
-                        document.querySelectorAll('.button-approve-kk').forEach(btn => disableButton(btn, true));
-                    }
-                } else {
+                if (source === 'overall') {
                     const btn = document.getElementById('button-correction-overall');
                     if (btn) {
                         btn.innerText = typeLabel || 'Correction';
@@ -492,18 +540,35 @@
             }
         }
 
-        function setDocDecision(docKey, decision) {
+        function setDocDecision(docKey, decision, btnElement = null) {
             if (!DOC_KEYS.includes(docKey)) return;
-            if (decision === 'approved') {
-                setButtonReadOnly('approve', docKey, 'doc');
+            const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
+            
+            let approveBtn, correctionBtn;
+            if (btnElement) {
+                const container = btnElement.closest('.flex.justify-end') || btnElement.parentElement;
+                if (!container) return;
+                approveBtn = container.querySelector(`.button-approve-${safeDocKey}`);
+                correctionBtn = container.querySelector(`.button-correction-${safeDocKey}`);
+            } else {
+                approveBtn = document.querySelector(`.button-approve-${safeDocKey}`);
+                correctionBtn = document.querySelector(`.button-correction-${safeDocKey}`);
             }
-            if (decision === 'correction') {
-                const labels = {
-                    kk: 'KOREKSI KK',
-                    raport: 'KOREKSI RAPOR',
-                    ranking: 'KOREKSI SURAT KET. RANKING'
-                };
-                setButtonReadOnly('correction', docKey, 'doc', labels[docKey]);
+            if (!approveBtn || !correctionBtn) return;
+            
+            const muteBtn = (btn) => {
+                btn.className = `${btn.className.split(' ')[0]} px-6 py-2.5 bg-gray-200 text-gray-500 rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center opacity-50`;
+            };
+            
+            if (decision === 'approved') {
+                approveBtn.className = `button-approve-${safeDocKey} px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center`;
+                approveBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">check_circle</span> Approved';
+                muteBtn(correctionBtn);
+            } else if (decision === 'correction') {
+                const labels = {kk: 'KOREKSI KK', rapor: 'KOREKSI RAPOR', ranking: 'KOREKSI SURAT RANKING'};
+                correctionBtn.className = `button-correction-${safeDocKey} px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center`;
+                correctionBtn.innerHTML = `<span class="material-symbols-outlined text-[16px]">edit</span> ${labels[safeDocKey] || 'KOREKSI'}`;
+                muteBtn(approveBtn);
             }
         }
 
@@ -580,6 +645,13 @@
         }
 
         function handleFinalSubmit() {
+            if (pendingAction === 'approve' && pendingActionSource === 'overall' && !isSigned) {
+                closeConfirmModal();
+                autoSubmitAfterSignature = true;
+                openSignatureModal();
+                return;
+            }
+
             const toast = document.getElementById('toast-success');
             const toastMsg = document.getElementById('toast-message');
             
@@ -598,15 +670,22 @@
                     });
                 } else {
                     toastMsg.innerText = "Pengajuan beasiswa berhasil disetujui HR Ops (On Process)!";
-                    DOC_KEYS.forEach((docKey) => setDocDecision(docKey, 'approved'));
+                    DOC_KEYS.forEach((docKey) => {
+                        const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
+                        document.querySelectorAll(`.button-approve-${safeDocKey}`).forEach(btn => setDocDecision(docKey, 'approved', btn));
+                    });
                     setOverallDecision('approve');
                     updateStatusBadge('On Process (Serafin Sutanto)');
                     updateEntryInStorage('On Process (Serafin Sutanto)', '');
                     patchCurrentEntryInStorage((entry) => {
-                        entry.verificationState = {
-                            docs: { kk: 'approved', raport: 'approved', ranking: 'approved' },
-                            overall: 'approve'
-                        };
+                        const state = entry.verificationState || getDefaultVerificationState();
+                        state.docs = { kk: 'approved', raport: 'approved', ranking: 'approved' };
+                        state.overall = 'approve';
+                        state.childDocs = state.childDocs || {};
+                        document.querySelectorAll('.button-approve-rapor').forEach((_, idx) => {
+                            state.childDocs[idx] = { raport: 'approved', ranking: 'approved' };
+                        });
+                        entry.verificationState = state;
                     });
                     
                     const notesDisplay = document.getElementById('overall-action-notes-display');
@@ -655,16 +734,23 @@
                         return;
                     }
                     toastMsg.innerText = "Status pengajuan berhasil diubah menjadi Koreksi Keseluruhan!";
-                    DOC_KEYS.forEach((docKey) => setDocDecision(docKey, 'correction'));
+                    DOC_KEYS.forEach((docKey) => {
+                        const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
+                        document.querySelectorAll(`.button-approve-${safeDocKey}`).forEach(btn => setDocDecision(docKey, 'correction', btn));
+                    });
                     setOverallDecision('correction');
                     const badge = document.getElementById('verification-status-badge');
                     if (badge) badge.dataset.statusTip = actionNote;
                     updateEntryInStorage('Koreksi (Helmi Salampessy)', actionNote);
                     patchCurrentEntryInStorage((entry) => {
-                        entry.verificationState = {
-                            docs: { kk: 'correction', raport: 'correction', ranking: 'correction' },
-                            overall: 'correction'
-                        };
+                        const state = entry.verificationState || getDefaultVerificationState();
+                        state.docs = { kk: 'correction', raport: 'correction', ranking: 'correction' };
+                        state.overall = 'correction';
+                        state.childDocs = state.childDocs || {};
+                        document.querySelectorAll('.button-approve-rapor').forEach((_, idx) => {
+                            state.childDocs[idx] = { raport: 'correction', ranking: 'correction' };
+                        });
+                        entry.verificationState = state;
                     });
                     
                     const notesDisplay = document.getElementById('overall-action-notes-display');
@@ -706,6 +792,11 @@
             
             isSigned = true;
             closeSignatureModal();
+            
+            if (autoSubmitAfterSignature) {
+                autoSubmitAfterSignature = false;
+                handleFinalSubmit();
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -727,7 +818,7 @@
             if (badge) {
                 badge.dataset.statusTip = effectiveStatusTip;
             }
-            if (effectiveStatus !== 'Done' && effectiveStatus !== 'Rejected' && !effectiveStatus.startsWith('Koreksi')) {
+            if (effectiveStatus !== 'Done' && effectiveStatus !== 'Rejected' && !effectiveStatus.startsWith('Koreksi') && effectiveStatus !== 'On Process (Serafin Sutanto)') {
                 isSigned = false;
                 document.getElementById('default-signature').classList.add('hidden');
                 document.getElementById('upload-signature-area').classList.remove('hidden');
@@ -773,11 +864,6 @@
                     entry.verificationState = getDefaultVerificationState();
                 }
                 const state = entry.verificationState || getDefaultVerificationState();
-                DOC_KEYS.forEach((docKey) => {
-                    if (state.docs && state.docs[docKey]) {
-                        setDocDecision(docKey, state.docs[docKey]);
-                    }
-                });
                 if (state.overall && state.overall !== 'pending') {
                     setOverallDecision(state.overall);
                 }
@@ -815,7 +901,7 @@
             if (storedEntry && storedEntry.children && storedEntry.children.length > 0) {
                 storedEntry.children.forEach((child, idx) => {
                     const nominalFormatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(child.nominal || 0);
-                    const isVerified = storedEntry.verificationState && storedEntry.verificationState.childrenVerified && storedEntry.verificationState.childrenVerified[idx];
+                    const isVerified = (effectiveStatus === 'Done') || (storedEntry.verificationState && storedEntry.verificationState.childrenVerified && storedEntry.verificationState.childrenVerified[idx]);
                     const statusText = isVerified ? 'VERIFIED' : 'NOT VERIFIED';
                     const statusClass = isVerified ? 'text-emerald-600' : 'text-amber-600';
                     const btnClass = isVerified 
@@ -860,10 +946,10 @@
                                         </div>
                                         
                                         <div class="flex-1 flex justify-end gap-3">
-                                            <button type="button" onclick="openConfirmModal('approve', 'Rapor Legalisir', 'doc')" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <button type="button" onclick="toggleDocDecision('rapor', 'approved', this, ${idx})" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                                 <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
                                             </button>
-                                            <button type="button" onclick="openConfirmModal('correction', 'raport', 'doc')" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <button type="button" onclick="toggleDocDecision('rapor', 'correction', this, ${idx})" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                                 <span class="material-symbols-outlined text-[16px]">edit</span> Correction
                                             </button>
                                         </div>
@@ -888,10 +974,10 @@
                                         </div>
                                         
                                         <div class="flex-1 flex justify-end gap-3">
-                                            <button type="button" onclick="openConfirmModal('approve', 'Surat Ranking', 'doc')" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <button type="button" onclick="toggleDocDecision('ranking', 'approved', this, ${idx})" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                                 <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
                                             </button>
-                                            <button type="button" onclick="openConfirmModal('correction', 'ranking', 'doc')" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <button type="button" onclick="toggleDocDecision('ranking', 'correction', this, ${idx})" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                                 <span class="material-symbols-outlined text-[16px]">edit</span> Correction
                                             </button>
                                         </div>
@@ -948,10 +1034,10 @@
                                     </div>
                                     
                                     <div class="flex-1 flex justify-end gap-3">
-                                        <button type="button" onclick="openConfirmModal('approve', 'Rapor Legalisir', 'doc')" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <button type="button" onclick="toggleDocDecision('rapor', 'approved', this, 0)" class="button-approve-rapor px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                             <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
                                         </button>
-                                        <button type="button" onclick="openConfirmModal('correction', 'raport', 'doc')" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <button type="button" onclick="toggleDocDecision('rapor', 'correction', this, 0)" class="button-correction-rapor px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                             <span class="material-symbols-outlined text-[16px]">edit</span> Correction
                                         </button>
                                     </div>
@@ -976,10 +1062,10 @@
                                     </div>
                                     
                                     <div class="flex-1 flex justify-end gap-3">
-                                        <button type="button" onclick="openConfirmModal('approve', 'Surat Ranking', 'doc')" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <button type="button" onclick="toggleDocDecision('ranking', 'approved', this, 0)" class="button-approve-ranking px-6 py-2.5 bg-[#009262] hover:bg-emerald-700 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                             <span class="material-symbols-outlined text-[16px]">check_circle</span> Approve
                                         </button>
-                                        <button type="button" onclick="openConfirmModal('correction', 'ranking', 'doc')" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <button type="button" onclick="toggleDocDecision('ranking', 'correction', this, 0)" class="button-correction-ranking px-6 py-2.5 bg-[#f59e0b] hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm min-w-[120px] justify-center">
                                             <span class="material-symbols-outlined text-[16px]">edit</span> Correction
                                         </button>
                                     </div>
@@ -990,6 +1076,26 @@
                 `;
             }
             tbody.innerHTML = rowsHtml;
+            
+            // Restore document button states now that they are in the DOM
+            const currentState = getCurrentEntryFromStorage()?.verificationState;
+            if (currentState) {
+                if (currentState.docs && currentState.docs['kk']) {
+                    setDocDecision('kk', currentState.docs['kk']);
+                }
+                const childRows = document.querySelectorAll('.button-approve-rapor');
+                childRows.forEach((btn, idx) => {
+                    const childState = currentState.childDocs && currentState.childDocs[idx] ? currentState.childDocs[idx] : currentState.docs;
+                    if (childState) {
+                        ['raport', 'ranking'].forEach(docKey => {
+                            if (childState[docKey]) {
+                                const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
+                                setDocDecision(docKey, childState[docKey], document.querySelectorAll(`.button-approve-${safeDocKey}`)[idx]);
+                            }
+                        });
+                    }
+                });
+            }
             
             if (effectiveStatus !== 'On Process (Helmi Salampessy)' && effectiveStatus !== 'IN PROGRESS') {
                 setAllActionButtonsDisabled(true);
