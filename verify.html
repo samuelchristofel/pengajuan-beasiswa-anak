@@ -910,6 +910,13 @@
         window.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             
+            // Handle return URL
+            const returnTo = params.get('returnTo') || 'index.html';
+            document.querySelectorAll('a[href="index.html"]').forEach(el => el.href = returnTo);
+            document.querySelectorAll('[onclick="window.location.href=\'index.html\'"]').forEach(el => {
+                el.setAttribute('onclick', `window.location.href='${returnTo}'`);
+            });
+            
             // Populate fields
             document.getElementById('nik').value = params.get('nik') || '12345';
             document.getElementById('karyawan').value = params.get('karyawan') || 'Budi Santoso';
