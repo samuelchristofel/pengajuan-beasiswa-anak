@@ -100,6 +100,15 @@
             }
         };
 
+        const employeeData = [
+            { nik: "12345", name: "Budi Santoso", dept: "Production" },
+            { nik: "67890", name: "Siti Aminah", dept: "Finance" },
+            { nik: "11223", name: "Joko Widodo", dept: "HR" },
+            { nik: "44556", name: "Dewi Lestari", dept: "Marketing" },
+            { nik: "99887", name: "Agus Salim", dept: "IT Department" },
+            { nik: "AV-20230045", name: "M. FAHMI MUSTOFA", dept: "IT Department" }
+        ];
+
         // Master Data - Synchronized with master-beasiswa.html
         const masterData = [
             { id: 1, peringkat: 'Ranking 1', jenjang: 'SD', nominal: 750000 },
@@ -491,9 +500,9 @@
                 el.setAttribute('onclick', `window.location.href='${returnTo}'`);
             });
             
-            let nik = "AV-20230045";
-            let karyawan = "M. FAHMI MUSTOFA";
-            let bagian = "IT Department";
+            let nik = "";
+            let karyawan = "";
+            let bagian = "";
             
             if (params.get('nik')) nik = params.get('nik');
             if (params.get('karyawan')) karyawan = params.get('karyawan');
@@ -502,6 +511,34 @@
             document.getElementById('nik').value = nik;
             document.getElementById('karyawan').value = karyawan;
             document.getElementById('bagian').value = bagian;
+
+            // Initialize Employee Searchable Dropdown
+            const karyawanList = document.getElementById('karyawan-list');
+            const karyawanInput = document.getElementById('karyawan');
+            const nikInput = document.getElementById('nik');
+            const bagianInput = document.getElementById('bagian');
+
+            if (karyawanList) {
+                employeeData.forEach(emp => {
+                    const option = document.createElement('option');
+                    option.value = emp.name;
+                    karyawanList.appendChild(option);
+                });
+            }
+
+            if (karyawanInput) {
+                karyawanInput.addEventListener('input', (e) => {
+                    const selectedName = e.target.value.trim().toUpperCase();
+                    const found = employeeData.find(emp => emp.name.toUpperCase() === selectedName);
+                    if (found) {
+                        nikInput.value = found.nik;
+                        bagianInput.value = found.dept;
+                    } else {
+                        nikInput.value = "";
+                        bagianInput.value = "";
+                    }
+                });
+            }
             
             // Site and Tahun Pengajuan
             document.getElementById('site').value = params.get('site') || 'AA PUSAT';
@@ -651,15 +688,16 @@
 <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
 <label class="flex flex-col gap-1.5">
 <span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">NIK</span>
-<input id="nik" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text" value="AV-20230045"/>
+<input id="nik" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text" placeholder="Terisi otomatis"/>
 </label>
 <label class="flex flex-col gap-1.5">
 <span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Nama Karyawan</span>
-<input id="karyawan" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text" value="M. FAHMI MUSTOFA"/>
+<input id="karyawan" list="karyawan-list" class="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2.5 text-sm font-medium shadow-sm" type="text" placeholder="Ketik nama karyawan..."/>
+<datalist id="karyawan-list"></datalist>
 </label>
 <label class="flex flex-col gap-1.5 md:col-span-2">
 <span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Bagian / Departemen</span>
-<input id="bagian" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text" value="IT Department"/>
+<input id="bagian" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text" placeholder="Terisi otomatis"/>
 </label>
 </div>
 </div>
