@@ -511,8 +511,8 @@
                 setStatus(status, 'mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-600/20 bg-emerald-50 text-emerald-800 px-3 py-1 text-xs font-semibold');
             } else if (status === 'On Process (Helmi Salampessy)') {
                 setStatus(status, 'mt-3 inline-flex items-center gap-2 rounded-full border border-blue-600/20 bg-blue-50 text-blue-800 px-3 py-1 text-xs font-semibold');
-            } else if (status === 'Rejected') {
-                setStatus('Rejected', 'mt-3 inline-flex items-center gap-2 rounded-full border border-red-600/20 bg-red-50 text-red-800 px-3 py-1 text-xs font-semibold');
+            } else if (status.startsWith('Rejected')) {
+                setStatus('Rejected (Helmi Salampessy)', 'mt-3 inline-flex items-center gap-2 rounded-full border border-red-600/20 bg-red-50 text-red-800 px-3 py-1 text-xs font-semibold');
             } else {
                 setStatus(status, 'mt-3 inline-flex items-center gap-2 rounded-full border border-amber-600/20 bg-amber-50 text-amber-800 px-3 py-1 text-xs font-semibold');
             }
@@ -809,8 +809,8 @@
                 toastMsg.innerText = "Pengajuan beasiswa berhasil ditolak (Rejected)!";
                 setOverallDecision('reject');
                 setAllActionButtonsDisabled(true);
-                updateStatusBadge('Rejected');
-                updateEntryInStorage('Rejected', `REJECTED: ${pendingRejectNote}`);
+                updateStatusBadge('Rejected (Helmi Salampessy)');
+                updateEntryInStorage('Rejected (Helmi Salampessy)', `REJECTED: ${pendingRejectNote}`);
                 patchCurrentEntryInStorage((entry) => {
                     const state = entry.verificationState || getDefaultVerificationState();
                     state.overall = 'reject';
@@ -933,7 +933,7 @@
             if (badge) {
                 badge.dataset.statusTip = effectiveStatusTip;
             }
-            if (effectiveStatus !== 'Done' && effectiveStatus !== 'Rejected' && !effectiveStatus.startsWith('Koreksi') && effectiveStatus !== 'On Process (Serafin Sutanto)') {
+            if (effectiveStatus !== 'Done' && !effectiveStatus.startsWith('Rejected') && !effectiveStatus.startsWith('Koreksi') && effectiveStatus !== 'On Process (Serafin Sutanto)') {
                 isSigned = false;
                 document.getElementById('default-signature').classList.add('hidden');
                 document.getElementById('upload-signature-area').classList.remove('hidden');
@@ -958,8 +958,8 @@
                     finApproveBtn.disabled = true;
                     finApproveBtn.innerHTML = '<span class="material-symbols-outlined text-sm">check_circle</span> Approved';
                 }
-            } else if (effectiveStatus === 'Rejected') {
-                updateStatusBadge('Rejected');
+            } else if (effectiveStatus.startsWith('Rejected')) {
+                updateStatusBadge('Rejected (Helmi Salampessy)');
                 setAllActionButtonsDisabled(true);
             } else if (effectiveStatus.startsWith('Koreksi')) {
                 updateStatusBadge(effectiveStatus);

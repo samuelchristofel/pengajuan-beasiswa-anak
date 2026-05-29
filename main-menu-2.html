@@ -250,7 +250,7 @@
             state.overall = 'approve';
             return state;
         }
-        if (status === 'Rejected') {
+        if (status.startsWith('Rejected')) {
             state.overall = 'reject';
             return state;
         }
@@ -316,7 +316,7 @@
         if (entry.status === 'On Process (Serafin Sutanto)') {
             return `<span class="${baseClasses} bg-emerald-100 text-emerald-800">${displayHtml}</span>`;
         }
-        if (entry.status === 'Rejected') {
+        if (entry.status.startsWith('Rejected')) {
             return `<span class="${baseClasses} bg-red-100 text-red-800">${displayHtml}</span>`;
         }
         if (entry.status.toLowerCase().includes('koreksi')) {
@@ -632,6 +632,7 @@
                     if (d.status === 'IN PROGRESS') { d.status = 'On Process (Helmi Salampessy)'; migrated = true; }
                     if (d.status === 'Approved') { d.status = 'On Process (Serafin Sutanto)'; migrated = true; }
                     if (d.status === 'Koreksi') { d.status = 'Koreksi (Helmi Salampessy)'; migrated = true; }
+                    if (d.status === 'Rejected') { d.status = 'Rejected (Helmi Salampessy)'; migrated = true; }
                 });
                 if (migrated) localStorage.setItem(key, JSON.stringify(data));
             } catch(e){}
