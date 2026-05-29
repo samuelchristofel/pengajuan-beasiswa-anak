@@ -370,7 +370,7 @@
                 toast.classList.remove('translate-y-0', 'opacity-100');
                 toast.classList.add('translate-y-[-100px]', 'opacity-0');
                 setTimeout(() => {
-                    window.location.href = 'index.html';
+                    window.location.href = window.returnToUrl || 'index.html';
                 }, 300);
             }, 2000);
         }
@@ -482,6 +482,14 @@
         window.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             const mode = params.get('mode') || 'add';
+            
+            // Handle return URL
+            const returnTo = params.get('returnTo') || 'index.html';
+            window.returnToUrl = returnTo;
+            document.querySelectorAll('a[href="index.html"]').forEach(el => el.href = returnTo);
+            document.querySelectorAll('[onclick="window.location.href=\'index.html\'"]').forEach(el => {
+                el.setAttribute('onclick', `window.location.href='${returnTo}'`);
+            });
             
             let nik = "AV-20230045";
             let karyawan = "M. FAHMI MUSTOFA";
