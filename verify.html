@@ -346,13 +346,102 @@
                         state.childDocs = state.childDocs || {};
                         state.childDocs[childIdx] = state.childDocs[childIdx] || {};
                         state.childDocs[childIdx][realDocKey] = finalDecision;
+                        if (finalDecision !== 'correction') {
+                            state.childDocs[childIdx][realDocKey + 'Note'] = '';
+                        }
                     } else {
                         state.docs[realDocKey] = finalDecision;
+                        if (finalDecision !== 'correction') {
+                            state.docs[realDocKey + 'Note'] = '';
+                        }
                     }
                     entry.verificationState = state;
                 });
             }
+
+            if (typeof updateApprovalSectionButtons === 'function') {
+                updateApprovalSectionButtons();
+            }
         };
+
+        function updateApprovalSectionButtons() {
+            const entry = getCurrentEntryFromStorage();
+            const targetAnak = new URLSearchParams(window.location.search).get('anak') || '';
+            let idx = 0;
+            if (entry && entry.children) {
+                const foundIdx = entry.children.findIndex(c => c.nama === targetAnak);
+                if (foundIdx >= 0) idx = foundIdx;
+            }
+            
+            const state = entry?.verificationState;
+            const childState = (state && state.childDocs && state.childDocs[idx]) ? state.childDocs[idx] : (state?.docs || {});
+            
+            const raporStatus = childState.raport || 'pending';
+            const rankingStatus = childState.ranking || 'pending';
+            
+            const statuses = [raporStatus, rankingStatus];
+            
+            const anyCorrection = statuses.includes('correction');
+            const allApproved = statuses.every(s => s === 'approved');
+            
+            const approveBtn = document.getElementById('button-approve-overall');
+            const correctionBtn = document.getElementById('button-correction-overall');
+            const rejectBtn = document.getElementById('button-reject-overall');
+            
+            if (!approveBtn || !correctionBtn || !rejectBtn) return;
+            
+            const enableBtn = (btn, bgClass, textClass) => {
+                btn.disabled = false;
+                btn.className = `flex-1 flex items-center justify-center gap-1 py-2 ${bgClass} ${textClass} text-xs font-bold transition-colors cursor-pointer`;
+            };
+            const disableBtn = (btn) => {
+                btn.disabled = true;
+                btn.className = `flex-1 flex-col sm:flex-row flex items-center justify-center gap-1 py-2 bg-gray-200 text-gray-400 text-xs font-bold transition-colors cursor-not-allowed opacity-50`;
+            };
+            
+            const effectiveStatus = entry ? entry.status : 'On Process (Helmi Salampessy)';
+            if (effectiveStatus !== 'On Process (Helmi Salampessy)' && effectiveStatus !== 'IN PROGRESS') {
+                disableBtn(approveBtn);
+                disableBtn(correctionBtn);
+                disableBtn(rejectBtn);
+                return;
+            }
+            
+            let anyDocProcessed = false;
+            if (state) {
+                if (state.docs) {
+                    if (Object.values(state.docs).some(s => s === 'approved' || s === 'correction')) {
+                        anyDocProcessed = true;
+                    }
+                }
+                if (state.childDocs) {
+                    Object.values(state.childDocs).forEach(cState => {
+                        if (cState.raport === 'approved' || cState.raport === 'correction' ||
+                            cState.ranking === 'approved' || cState.ranking === 'correction') {
+                            anyDocProcessed = true;
+                        }
+                    });
+                }
+            }
+            
+            if (anyCorrection) {
+                disableBtn(approveBtn);
+                enableBtn(correctionBtn, 'bg-amber-500 hover:bg-amber-600', 'text-gray-900');
+                disableBtn(rejectBtn);
+            } else if (allApproved) {
+                enableBtn(approveBtn, 'bg-emerald-600 hover:bg-emerald-700', 'text-white');
+                disableBtn(correctionBtn);
+                disableBtn(rejectBtn);
+            } else {
+                enableBtn(approveBtn, 'bg-emerald-600 hover:bg-emerald-700', 'text-white');
+                enableBtn(correctionBtn, 'bg-amber-500 hover:bg-amber-600', 'text-gray-900');
+                if (anyDocProcessed) {
+                    disableBtn(rejectBtn);
+                } else {
+                    enableBtn(rejectBtn, 'bg-red-600 hover:bg-red-700', 'text-white');
+                }
+            }
+        }
 
         function setButtonReadOnly(action, target, source, typeLabel) {
             const disableButton = (btn, shouldMute = false) => {
@@ -529,16 +618,25 @@
 
         function updateEntryInStorage(nextStatus, nextStatusTip = '') {
             try {
-                const identity = getCurrentEntryIdentity();
+                const params = new URLSearchParams(window.location.search);
+                const id = params.get('id') || '';
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (!raw) return;
                 const parsed = JSON.parse(raw);
                 if (!Array.isArray(parsed)) return;
-                const idx = parsed.findIndex((entry) =>
-                    String(entry.nik || '') === identity.nik &&
-                    String(entry.karyawan || '') === identity.karyawan &&
-                    String(entry.anak || '') === identity.anak
-                );
+                
+                let idx = -1;
+                if (id) {
+                    idx = parsed.findIndex(entry => String(entry.id) === id);
+                }
+                if (idx < 0) {
+                    const identity = getCurrentEntryIdentity();
+                    idx = parsed.findIndex((entry) =>
+                        String(entry.nik || '') === identity.nik &&
+                        String(entry.karyawan || '') === identity.karyawan &&
+                        String(entry.anak || '') === identity.anak
+                    );
+                }
                 if (idx < 0) return;
                 parsed[idx].status = nextStatus;
                 parsed[idx].statusTip = nextStatusTip;
@@ -557,16 +655,25 @@
 
         function patchCurrentEntryInStorage(patchFn) {
             try {
-                const identity = getCurrentEntryIdentity();
+                const params = new URLSearchParams(window.location.search);
+                const id = params.get('id') || '';
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (!raw) return;
                 const parsed = JSON.parse(raw);
                 if (!Array.isArray(parsed)) return;
-                const idx = parsed.findIndex((entry) =>
-                    String(entry.nik || '') === identity.nik &&
-                    String(entry.karyawan || '') === identity.karyawan &&
-                    String(entry.anak || '') === identity.anak
-                );
+                
+                let idx = -1;
+                if (id) {
+                    idx = parsed.findIndex(entry => String(entry.id) === id);
+                }
+                if (idx < 0) {
+                    const identity = getCurrentEntryIdentity();
+                    idx = parsed.findIndex((entry) =>
+                        String(entry.nik || '') === identity.nik &&
+                        String(entry.karyawan || '') === identity.karyawan &&
+                        String(entry.anak || '') === identity.anak
+                    );
+                }
                 if (idx < 0) return;
                 patchFn(parsed[idx]);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
@@ -577,11 +684,19 @@
 
         function getCurrentEntryFromStorage() {
             try {
-                const identity = getCurrentEntryIdentity();
+                const params = new URLSearchParams(window.location.search);
+                const id = params.get('id') || '';
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
                 if (!Array.isArray(parsed)) return null;
+                
+                if (id) {
+                    const found = parsed.find(entry => String(entry.id) === id);
+                    if (found) return found;
+                }
+                
+                const identity = getCurrentEntryIdentity();
                 return parsed.find((entry) =>
                     String(entry.nik || '') === identity.nik &&
                     String(entry.karyawan || '') === identity.karyawan &&
@@ -748,9 +863,22 @@
                             state.childDocs = state.childDocs || {};
                             state.childDocs[childIdx] = state.childDocs[childIdx] || {};
                             state.childDocs[childIdx][realDocKey] = 'correction';
+                            state.childDocs[childIdx][realDocKey + 'Note'] = actionNote;
                         } else {
                             state.docs[realDocKey] = 'correction';
+                            state.docs[realDocKey + 'Note'] = actionNote;
                         }
+                        
+                        entry.status = 'Koreksi (Helmi Salampessy)';
+                        const tips = [];
+                        entry.children.forEach((c, idx) => {
+                            const cState = state.childDocs[idx];
+                            if (cState && (cState.raport === 'correction' || cState.ranking === 'correction')) {
+                                tips.push(`${c.nama}: Koreksi Dokumen`);
+                            }
+                        });
+                        entry.statusTip = tips.join(', ') || 'Koreksi Dokumen';
+                        
                         entry.verificationState = state;
                     });
                 }
@@ -773,26 +901,71 @@
                     setDocDecision(pendingActionDocKey, 'approved');
                     patchCurrentEntryInStorage((entry) => {
                         const state = entry.verificationState || getDefaultVerificationState();
-                        state.docs[pendingActionDocKey] = 'approved';
+                        const params = new URLSearchParams(window.location.search);
+                        const targetAnak = params.get('anak') || '';
+                        let currentChildIdx = 0;
+                        if (entry.children) {
+                            const foundIdx = entry.children.findIndex(c => c.nama === targetAnak);
+                            if (foundIdx >= 0) currentChildIdx = foundIdx;
+                        }
+                        state.childDocs = state.childDocs || {};
+                        state.childDocs[currentChildIdx] = state.childDocs[currentChildIdx] || {};
+                        state.childDocs[currentChildIdx][pendingActionDocKey] = 'approved';
+                        state.childDocs[currentChildIdx][pendingActionDocKey + 'Note'] = '';
                         entry.verificationState = state;
                     });
                 } else {
-                    toastMsg.innerText = "Pengajuan beasiswa berhasil disetujui HR Ops (On Process)!";
+                    toastMsg.innerText = "Pengajuan beasiswa anak berhasil disetujui HR Ops!";
                     DOC_KEYS.forEach((docKey) => {
                         const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
                         document.querySelectorAll(`.button-approve-${safeDocKey}`).forEach(btn => setDocDecision(docKey, 'approved', btn));
                     });
                     setOverallDecision('approve');
-                    updateStatusBadge('On Process (Serafin Sutanto)');
-                    updateEntryInStorage('On Process (Serafin Sutanto)', '');
+                    
+                    const params = new URLSearchParams(window.location.search);
+                    const targetAnak = params.get('anak') || '';
+                    
                     patchCurrentEntryInStorage((entry) => {
                         const state = entry.verificationState || getDefaultVerificationState();
-                        state.docs = { kk: 'approved', raport: 'approved', ranking: 'approved' };
-                        state.overall = 'approve';
+                        let currentChildIdx = 0;
+                        if (entry.children) {
+                            const foundIdx = entry.children.findIndex(c => c.nama === targetAnak);
+                            if (foundIdx >= 0) currentChildIdx = foundIdx;
+                        }
+                        
                         state.childDocs = state.childDocs || {};
-                        document.querySelectorAll('.button-approve-rapor').forEach((_, idx) => {
-                            state.childDocs[idx] = { raport: 'approved', ranking: 'approved' };
-                        });
+                        state.childDocs[currentChildIdx] = state.childDocs[currentChildIdx] || {};
+                        state.childDocs[currentChildIdx].raport = 'approved';
+                        state.childDocs[currentChildIdx].ranking = 'approved';
+                        state.childDocs[currentChildIdx].overall = 'approve';
+                        state.childDocs[currentChildIdx].raportNote = '';
+                        state.childDocs[currentChildIdx].rankingNote = '';
+                        
+                        state.childrenVerified = state.childrenVerified || {};
+                        state.childrenVerified[currentChildIdx] = true;
+                        
+                        // Check if all children in this entry are approved
+                        let allApproved = true;
+                        if (entry.children && entry.children.length > 0) {
+                            entry.children.forEach((c, idx) => {
+                                const cState = state.childDocs[idx];
+                                if (!cState || cState.overall !== 'approve') {
+                                    allApproved = false;
+                                }
+                            });
+                        } else {
+                            allApproved = false;
+                        }
+                        
+                        if (allApproved) {
+                            entry.status = 'On Process (Serafin Sutanto)';
+                            entry.statusTip = '';
+                            updateStatusBadge('On Process (Serafin Sutanto)');
+                        } else {
+                            entry.status = 'On Process (Helmi Salampessy)';
+                            updateStatusBadge('On Process (Helmi Salampessy)');
+                        }
+                        
                         entry.verificationState = state;
                     });
                     
@@ -829,36 +1002,59 @@
                 toast.className = "fixed top-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
             } else if (pendingAction === 'correction') {
                 if (pendingActionSource === 'doc') {
-                    toastMsg.innerText = `Dokumen ${activeCorrectionTarget} butuh koreksi (${selectedCorrectionType})!`;
-                    setDocDecision(pendingActionDocKey, 'correction');
-                    patchCurrentEntryInStorage((entry) => {
-                        const state = entry.verificationState || getDefaultVerificationState();
-                        state.docs[pendingActionDocKey] = 'correction';
-                        entry.verificationState = state;
-                    });
+                    // Handled in doc_correction_modal block
                 } else {
                     if (!actionNote) {
                         if (notesError) notesError.classList.remove('hidden');
                         return;
                     }
-                    toastMsg.innerText = "Status pengajuan berhasil diubah menjadi Koreksi Keseluruhan!";
+                    toastMsg.innerText = "Status pengajuan anak diubah menjadi Koreksi!";
                     DOC_KEYS.forEach((docKey) => {
                         const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
                         document.querySelectorAll(`.button-approve-${safeDocKey}`).forEach(btn => setDocDecision(docKey, 'correction', btn));
                     });
                     setOverallDecision('correction');
-                    const badge = document.getElementById('verification-status-badge');
-                    if (badge) badge.dataset.statusTip = actionNote;
-                    updateEntryInStorage('Koreksi (Helmi Salampessy)', actionNote);
+                    
+                    const params = new URLSearchParams(window.location.search);
+                    const targetAnak = params.get('anak') || '';
+                    
                     patchCurrentEntryInStorage((entry) => {
                         const state = entry.verificationState || getDefaultVerificationState();
-                        state.docs = { kk: 'correction', raport: 'correction', ranking: 'correction' };
-                        state.overall = 'correction';
+                        let currentChildIdx = 0;
+                        if (entry.children) {
+                            const foundIdx = entry.children.findIndex(c => c.nama === targetAnak);
+                            if (foundIdx >= 0) currentChildIdx = foundIdx;
+                        }
+                        
                         state.childDocs = state.childDocs || {};
-                        document.querySelectorAll('.button-approve-rapor').forEach((_, idx) => {
-                            state.childDocs[idx] = { raport: 'correction', ranking: 'correction' };
+                        state.childDocs[currentChildIdx] = state.childDocs[currentChildIdx] || {};
+                        
+                        // Set both documents to correction if they are not approved
+                        if (state.childDocs[currentChildIdx].raport !== 'approved') {
+                            state.childDocs[currentChildIdx].raport = 'correction';
+                            state.childDocs[currentChildIdx].raportNote = actionNote;
+                        }
+                        if (state.childDocs[currentChildIdx].ranking !== 'approved') {
+                            state.childDocs[currentChildIdx].ranking = 'correction';
+                            state.childDocs[currentChildIdx].rankingNote = actionNote;
+                        }
+                        state.childDocs[currentChildIdx].overall = 'correction';
+                        
+                        // Update parent status
+                        entry.status = 'Koreksi (Helmi Salampessy)';
+                        
+                        // Build combined statusTip
+                        const tips = [];
+                        entry.children.forEach((c, idx) => {
+                            const cState = state.childDocs[idx];
+                            if (cState && (cState.raport === 'correction' || cState.ranking === 'correction')) {
+                                tips.push(`${c.nama}: Koreksi Dokumen`);
+                            }
                         });
+                        entry.statusTip = tips.join(', ') || 'Koreksi Dokumen';
+                        
                         entry.verificationState = state;
+                        updateStatusBadge('Koreksi (Helmi Salampessy)');
                     });
                     
                     const notesDisplay = document.getElementById('overall-action-notes-display');
@@ -867,8 +1063,6 @@
                         notesDisplay.classList.add('bg-amber-50', 'border-amber-500', 'text-amber-900');
                         document.getElementById('overall-action-notes-content').innerText = actionNote;
                     }
-                    
-                    updateStatusBadge('Koreksi (Helmi Salampessy)');
                 }
                 toast.className = "fixed top-4 right-4 bg-amber-500 text-gray-900 px-4 py-3 rounded-lg shadow-xl flex items-center gap-2 transform translate-y-0 opacity-100 transition-all duration-300 z-50";
             }
@@ -1013,8 +1207,12 @@
                 });
             };
             let rowsHtml = '';
+            const targetAnak = params.get('anak') || '';
             if (storedEntry && storedEntry.children && storedEntry.children.length > 0) {
                 storedEntry.children.forEach((child, idx) => {
+                    if (targetAnak && child.nama !== targetAnak) {
+                        return;
+                    }
                     const nominalFormatted = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(child.nominal || 0);
                     const isVerified = (effectiveStatus === 'Done') || (storedEntry.verificationState && storedEntry.verificationState.childrenVerified && storedEntry.verificationState.childrenVerified[idx]);
                     const statusText = isVerified ? 'VERIFIED' : 'NOT VERIFIED';
@@ -1210,24 +1408,44 @@
                 if (currentState.docs && currentState.docs['kk']) {
                     setDocDecision('kk', currentState.docs['kk']);
                 }
-                const childRows = document.querySelectorAll('.button-approve-rapor');
-                childRows.forEach((btn, idx) => {
-                    const childState = currentState.childDocs && currentState.childDocs[idx] ? currentState.childDocs[idx] : currentState.docs;
-                    if (childState) {
-                        ['raport', 'ranking'].forEach(docKey => {
-                            if (childState[docKey]) {
-                                const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
-                                setDocDecision(docKey, childState[docKey], document.querySelectorAll(`.button-approve-${safeDocKey}`)[idx]);
-                                if (childState[docKey] === 'correction') {
-                                    const noteKey = `${safeDocKey}_${idx}`;
-                                    if (docCorrectionNotes[noteKey]) {
-                                        showDocCorrectionNote(safeDocKey, idx, docCorrectionNotes[noteKey]);
-                                    }
+                
+                // Find actual index of child shown on page
+                const params = new URLSearchParams(window.location.search);
+                const targetAnak = params.get('anak') || '';
+                const storedEntry = getCurrentEntryFromStorage();
+                let currentChildIdx = 0;
+                if (storedEntry && storedEntry.children) {
+                    const foundIdx = storedEntry.children.findIndex(c => c.nama === targetAnak);
+                    if (foundIdx >= 0) currentChildIdx = foundIdx;
+                }
+                
+                const childState = currentState.childDocs && currentState.childDocs[currentChildIdx] ? currentState.childDocs[currentChildIdx] : currentState.docs;
+                if (childState) {
+                    ['raport', 'ranking'].forEach(docKey => {
+                        if (childState[docKey]) {
+                            const safeDocKey = docKey === 'raport' ? 'rapor' : docKey;
+                            
+                            // Populate docCorrectionNotes
+                            const noteVal = childState[docKey + 'Note'] || '';
+                            const noteKey = `${safeDocKey}_${currentChildIdx}`;
+                            if (noteVal) {
+                                docCorrectionNotes[noteKey] = noteVal;
+                            }
+                            
+                            const approveBtn = document.querySelector(`.button-approve-${safeDocKey}`);
+                            setDocDecision(docKey, childState[docKey], approveBtn);
+                            if (childState[docKey] === 'correction') {
+                                if (docCorrectionNotes[noteKey]) {
+                                    showDocCorrectionNote(safeDocKey, currentChildIdx, docCorrectionNotes[noteKey]);
                                 }
                             }
-                        });
-                    }
-                });
+                        }
+                    });
+                }
+            }
+            
+            if (typeof updateApprovalSectionButtons === 'function') {
+                updateApprovalSectionButtons();
             }
             
             if (effectiveStatus !== 'On Process (Helmi Salampessy)' && effectiveStatus !== 'IN PROGRESS') {
@@ -1281,6 +1499,10 @@
 <span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
 <span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
 </a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="report.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">description</span>
+<span class="text-sm font-medium sidebar-text">Report</span>
+</a>
 </nav>
 </div>
 </aside>
@@ -1306,7 +1528,7 @@
 <input id="site" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text"/>
 </label>
 <label class="flex flex-col gap-1.5 opacity-80">
-<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Tahun Pengajuan</span>
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Tahun Ajaran</span>
 <input id="tahun-pengajuan" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text"/>
 </label>
 </div>

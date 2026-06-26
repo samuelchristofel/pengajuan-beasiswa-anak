@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html class="light" lang="id">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Laporan Beasiswa - PT AVIA AVIAN TBK</title>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#006837", // Avian Green
+                        "avian-green": "#006837",
+                        "avian-dark": "#333333", // Dark gray/charcoal for sidebar
+                        "avian-hover": "#4a4a4a", // Slightly lighter for sidebar hover
+                        "background-light": "#f1f1f1",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.375rem",
+                        "lg": "0.5rem", 
+                        "xl": "0.75rem", 
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+        .sidebar-transition {
+            transition: width 0.3s ease-in-out;
+        }
+        .sidebar-text {
+             white-space: nowrap;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            header, aside, #print-ignore-1, #print-ignore-2, #pagination-container {
+                display: none !important;
+            }
+            main {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .print-header {
+                display: block !important;
+            }
+            .table-container {
+                border: none !important;
+                box-shadow: none !important;
+            }
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            th, td {
+                border: 1px solid #999 !important;
+                padding: 8px 12px !important;
+                font-size: 10px !important;
+                color: black !important;
+            }
+            thead {
+                background-color: #f3f4f6 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+    <script>
+        const STORAGE_KEY = 'avianScholarshipEntries_v2';
+        let entries = [];
+        let currentPage = 1;
+        let pageSize = 10;
+        let filters = { search: '' };
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('w-64')) {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-0');
+                sidebar.classList.add('overflow-hidden');
+            } else {
+                sidebar.classList.remove('w-0');
+                sidebar.classList.remove('overflow-hidden');
+                sidebar.classList.add('w-64');
+            }
+        }
+
+        function getStoredEntries() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return [];
+            try {
+                return JSON.parse(raw) || [];
+            } catch {
+                return [];
+            }
+        }
+
+        function getFlattenedEntries(rawEntries) {
+            const flattened = [];
+            rawEntries.forEach(entry => {
+                if (entry.children && entry.children.length > 0) {
+                    entry.children.forEach((child, childIdx) => {
+                        let childStatus = entry.status;
+                        
+                        const state = entry.verificationState;
+                        if (state) {
+                            const childState = (state.childDocs && state.childDocs[childIdx]) ? state.childDocs[childIdx] : (state.docs || {});
+                            if (childState) {
+                                const raporStatus = childState.raport || 'pending';
+                                const rankingStatus = childState.ranking || 'pending';
+                                
+                                if (raporStatus === 'correction' || rankingStatus === 'correction') {
+                                    childStatus = 'Koreksi (Helmi Salampessy)';
+                                } else if (raporStatus === 'approved' && rankingStatus === 'approved') {
+                                    if (entry.status === 'Done') {
+                                        childStatus = 'Done';
+                                    } else {
+                                        childStatus = 'On Process (Serafin Sutanto)';
+                                    }
+                                } else {
+                                    if (entry.status.startsWith('Rejected')) {
+                                        childStatus = 'Rejected (Helmi Salampessy)';
+                                    } else if (entry.status === 'On Process (Serafin Sutanto)' || entry.status === 'Done') {
+                                        childStatus = entry.status;
+                                    } else {
+                                        childStatus = 'On Process (Helmi Salampessy)';
+                                    }
+                                }
+                            }
+                        }
+
+                        if (childStatus === 'Done') {
+                            flattened.push({
+                                id: entry.id,
+                                tanggal: entry.tanggal,
+                                nik: entry.nik,
+                                karyawan: entry.karyawan,
+                                bagian: entry.bagian,
+                                status: childStatus,
+                                anak: child.nama,
+                                peringkat: child.peringkat,
+                                semester: child.semester,
+                                jenjang: child.jenjang,
+                                jumlah: child.nominal
+                            });
+                        }
+                    });
+                } else {
+                    if (entry.status === 'Done') {
+                        flattened.push({
+                            id: entry.id,
+                            tanggal: entry.tanggal,
+                            nik: entry.nik,
+                            karyawan: entry.karyawan,
+                            bagian: entry.bagian,
+                            status: entry.status,
+                            anak: entry.anak,
+                            peringkat: entry.peringkat,
+                            semester: entry.semester,
+                            jenjang: entry.jenjang,
+                            jumlah: entry.jumlah
+                        });
+                    }
+                }
+            });
+            return flattened;
+        }
+
+        function formatCurrency(amount) {
+            return 'Rp ' + new Intl.NumberFormat('id-ID').format(amount);
+        }
+
+        function filterEntries() {
+            return entries.filter(entry => {
+                if (filters.search) {
+                    const searchValue = filters.search.toLowerCase();
+                    return [entry.nik, entry.karyawan, entry.bagian, entry.anak, entry.peringkat, entry.semester, entry.jenjang]
+                        .join(' ').toLowerCase().includes(searchValue);
+                }
+                return true;
+            });
+        }
+
+        function changePage(page) {
+            currentPage = Math.max(1, page);
+            renderTable();
+        }
+
+        function renderPagination(totalPages) {
+            const container = document.getElementById('pagination-controls');
+            if (!container) return;
+
+            const buttons = [];
+            buttons.push(`<button type="button" onclick="changePage(${currentPage - 1})" class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 text-gray-600 disabled:opacity-50" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>`);
+
+            for (let page = 1; page <= totalPages; page += 1) {
+                buttons.push(`<button type="button" onclick="changePage(${page})" class="px-3 py-1 text-xs border ${page === currentPage ? 'border-avian-green bg-avian-green text-white' : 'border-gray-300 hover:bg-gray-50 text-gray-600'} rounded">${page}</button>`);
+            }
+
+            buttons.push(`<button type="button" onclick="changePage(${currentPage + 1})" class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50 text-gray-600 disabled:opacity-50" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>`);
+
+            container.innerHTML = buttons.join('');
+        }
+
+        function renderTable() {
+            const body = document.getElementById('report-table-body');
+            const info = document.getElementById('table-info');
+            if (!body || !info) return;
+
+            const filtered = filterEntries();
+            const total = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+            if (currentPage > totalPages) {
+                currentPage = totalPages;
+            }
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const pageItems = filtered.slice(startIndex, startIndex + pageSize);
+
+            let html = '';
+            if (pageItems.length === 0) {
+                html = `<tr><td colspan="10" class="px-6 py-8 text-center text-gray-500">Tidak ada data selesai (Done) ditemukan.</td></tr>`;
+            } else {
+                pageItems.forEach((entry, index) => {
+                    html += `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800">
+                            <td class="px-4 py-3 text-center text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-800">${startIndex + index + 1}</td>
+                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800">${entry.tanggal}</td>
+                            <td class="px-4 py-3 text-center text-gray-800 dark:text-gray-200 font-semibold border-r border-gray-200 dark:border-gray-800">${entry.nik}</td>
+                            <td class="px-4 py-3 text-gray-800 dark:text-gray-200 font-medium border-r border-gray-200 dark:border-gray-800">${entry.karyawan}</td>
+                            <td class="px-4 py-3 text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800">${entry.bagian}</td>
+                            <td class="px-4 py-3 text-gray-800 dark:text-gray-200 border-r border-gray-200 dark:border-gray-800">${entry.anak}</td>
+                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800">${entry.peringkat}</td>
+                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800 capitalize">${entry.semester}</td>
+                            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800 uppercase">${entry.jenjang}</td>
+                            <td class="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-450 whitespace-nowrap">${formatCurrency(entry.jumlah)}</td>
+                        </tr>`;
+                });
+            }
+
+            body.innerHTML = html;
+            const startLabel = total === 0 ? 0 : startIndex + 1;
+            const endLabel = total === 0 ? 0 : Math.min(startIndex + pageSize, total);
+            info.innerText = `Showing ${startLabel} to ${endLabel} of ${total} entries`;
+            renderPagination(totalPages);
+        }
+
+        function updateSearchValue() {
+            filters.search = document.getElementById('search-input')?.value.trim().toLowerCase() || '';
+            currentPage = 1;
+            renderTable();
+        }
+
+        function exportToExcel() {
+            const dataToExport = filterEntries();
+            if (dataToExport.length === 0) {
+                alert('Tidak ada data untuk diekspor.');
+                return;
+            }
+            
+            const headers = ['No', 'Tanggal Input', 'NIK', 'Karyawan', 'Departemen', 'Nama Anak', 'Peringkat', 'Semester', 'Jenjang', 'Nominal Beasiswa'];
+            
+            const rows = dataToExport.map((entry, index) => [
+                index + 1,
+                entry.tanggal,
+                entry.nik,
+                entry.karyawan,
+                entry.bagian,
+                entry.anak,
+                entry.peringkat,
+                entry.semester,
+                entry.jenjang,
+                entry.jumlah
+            ]);
+            
+            const csvContent = [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', 'Laporan_Tunjangan_Beasiswa_Selesai.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportToPDF() {
+            const printDateSpan = document.getElementById('print-date');
+            if (printDateSpan) {
+                printDateSpan.innerText = new Date().toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            }
+            window.print();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            entries = getFlattenedEntries(getStoredEntries());
+            document.getElementById('search-input')?.addEventListener('input', updateSearchValue);
+            renderTable();
+        });
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#111418] dark:text-white overflow-hidden">
+<div class="flex flex-col h-screen w-full">
+<header class="h-14 bg-avian-green text-white flex items-center justify-between px-4 shrink-0 z-30 shadow-md relative">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 min-w-[200px]">
+<span class="material-symbols-outlined text-white text-3xl fill-1" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+<span class="text-white font-bold text-xl tracking-tight">Avian HRMS</span>
+</div>
+<button class="text-white hover:bg-white/10 rounded-full p-1 transition-colors" onclick="toggleSidebar()">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-white hover:bg-white/10 rounded-full p-1 transition-colors" title="Home" onclick="window.location.href='index.html'">
+<span class="material-symbols-outlined">home</span>
+</button>
+<div class="flex items-center gap-3 border-l border-white/20 pl-4">
+<span class="text-sm font-semibold text-white hidden sm:block">M. FAHMI MUSTOFA</span>
+<div class="size-8 rounded-full bg-white/20 text-white flex items-center justify-center overflow-hidden border border-white/30">
+<span class="material-symbols-outlined text-xl">person</span>
+</div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<aside class="flex flex-col w-64 h-full bg-avian-dark text-white shrink-0 sidebar-transition group overflow-y-auto" id="sidebar">
+<div class="py-4">
+<nav class="flex flex-col w-full">
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover transition-colors whitespace-nowrap" href="index.html">
+<span class="material-symbols-outlined text-white text-[20px]">home</span>
+<span class="text-sm font-medium sidebar-text">Home</span>
+</a>
+<div class="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Main Menu</div>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="index.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">dashboard</span>
+<span class="text-sm font-medium sidebar-text">Main Menu</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="main-menu-2.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">view_list</span>
+<span class="text-sm font-medium sidebar-text">Main Menu 2</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="master-beasiswa.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
+<span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-avian-green text-white border-l-4 border-white transition-colors whitespace-nowrap" href="report.html">
+<span class="material-symbols-outlined text-white text-[20px] fill-1">description</span>
+<span class="text-sm font-bold sidebar-text">Report</span>
+</a>
+</nav>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark relative">
+<div class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+<div class="max-w-[1200px] mx-auto flex flex-col gap-6 pb-12">
+    <!-- Printable Header (Hidden on Screen) -->
+    <div class="print-header hidden mb-6 text-center border-b-2 border-double border-gray-800 pb-4">
+        <h1 class="text-xl font-bold uppercase">Laporan Pengajuan Tunjangan Beasiswa Anak</h1>
+        <h2 class="text-sm font-semibold uppercase mt-1">PT AVIA AVIAN TBK</h2>
+        <p class="text-[10px] text-gray-500 mt-1">Dicetak pada: <span id="print-date"></span></p>
+    </div>
+
+    <div id="print-ignore-1" class="flex flex-col gap-1 pb-2">
+        <div class="flex items-center text-sm text-gray-500 mb-2">
+            <a href="index.html" class="hover:text-avian-green">Dashboard</a>
+            <span class="mx-2">›</span>
+            <span class="text-avian-green font-medium">Report</span>
+        </div>
+        <h1 class="text-[#111418] dark:text-white text-2xl md:text-3xl font-bold leading-tight tracking-tight">Laporan Beasiswa Selesai</h1>
+        <p class="text-gray-500 text-sm">Menampilkan semua data pengajuan beasiswa anak yang telah selesai diproses (Done).</p>
+    </div>
+
+    <!-- Toolbar: Search and Export Buttons -->
+    <div id="print-ignore-2" class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div class="relative flex-1 max-w-md">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+            <input id="search-input" type="text" placeholder="Cari NIK, karyawan, anak..." class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-avian-green focus:border-avian-green text-[#111418] dark:text-white" />
+        </div>
+        
+        <!-- Export Pill Buttons matching user mockup style -->
+        <div class="flex items-center gap-1 bg-[#475569] text-white p-1 rounded-lg shadow-sm">
+            <button onclick="exportToExcel()" class="px-4 py-1.5 hover:bg-[#334155] rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[18px]">table_chart</span> Excel
+            </button>
+            <div class="w-px h-6 bg-white/20"></div>
+            <button onclick="exportToPDF()" class="px-4 py-1.5 hover:bg-[#334155] rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="table-container bg-white dark:bg-[#1a2634] rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <div id="print-ignore-3" class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a2634]">
+            <h2 class="text-[#111418] dark:text-white text-lg font-bold">Data Beasiswa Selesai (Done)</h2>
+        </div>
+        <div class="p-0 overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[950px]" id="report-table">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-gray-800/80 text-gray-750 dark:text-gray-300 text-xs font-bold uppercase tracking-wider border-b border-gray-200 dark:border-gray-800">
+                        <th class="px-4 py-3 w-14 text-center">No</th>
+                        <th class="px-4 py-3 w-28 text-center">Tanggal Input</th>
+                        <th class="px-4 py-3 w-24 text-center">NIK</th>
+                        <th class="px-4 py-3">Nama Karyawan</th>
+                        <th class="px-4 py-3 w-32">Bagian</th>
+                        <th class="px-4 py-3">Nama Anak</th>
+                        <th class="px-4 py-3 w-28 text-center">Peringkat</th>
+                        <th class="px-4 py-3 w-24 text-center">Semester</th>
+                        <th class="px-4 py-3 w-24 text-center">Jenjang</th>
+                        <th class="px-4 py-3 text-right">Nominal</th>
+                    </tr>
+                </thead>
+                <tbody id="report-table-body" class="divide-y divide-gray-100 dark:divide-gray-800 text-xs text-[#111418] dark:text-gray-100">
+                    <!-- Dynamic Done Rows -->
+                </tbody>
+            </table>
+        </div>
+        <div id="pagination-container" class="p-4 border-t border-gray-300 dark:border-gray-800 bg-white dark:bg-[#1a2634] text-xs flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+            <p id="table-info" class="text-gray-500">Showing 0 to 0 of 0 entries</p>
+            <div id="pagination-controls" class="flex items-center gap-1"></div>
+        </div>
+    </div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body>
+</html>

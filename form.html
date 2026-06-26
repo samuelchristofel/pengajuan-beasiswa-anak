@@ -202,7 +202,7 @@
             document.getElementById('kk-modal').classList.add('hidden');
         }
 
-        function addChildRow(initialData = null) {
+        function addChildRow(initialData = null, childIdx = null) {
             const tbody = document.getElementById('children-table-body');
             const rowId = 'row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
             
@@ -210,37 +210,62 @@
             tr.id = rowId;
             tr.className = "child-data-row hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors";
             
-            const nik = document.getElementById('nik').value || "AV-20230045";
+            const selectedTahun = document.getElementById('tahun-pengajuan')?.value || '2025/2026';
             
+            const params = new URLSearchParams(window.location.search);
+            const mode = params.get('mode') || 'add';
+            const entryId = params.get('entryId');
+            let isRaporApproved = false;
+            let isRankingApproved = false;
+            let raporNote = '';
+            let rankingNote = '';
+            
+            if (mode === 'edit' && entryId && childIdx !== null) {
+                const storedEntries = getStoredEntries();
+                const existingEntry = storedEntries.find(item => item.id === entryId);
+                if (existingEntry && existingEntry.verificationState) {
+                    const state = existingEntry.verificationState;
+                    const childState = (state.childDocs && state.childDocs[childIdx]) ? state.childDocs[childIdx] : (state.docs || {});
+                    isRaporApproved = childState.raport === 'approved';
+                    isRankingApproved = childState.ranking === 'approved';
+                    if (childState.raport === 'correction') {
+                        raporNote = childState.raportNote || '';
+                    }
+                    if (childState.ranking === 'correction') {
+                        rankingNote = childState.rankingNote || '';
+                    }
+                }
+            }
+            const isRowApproved = isRaporApproved && isRankingApproved;
+
             tr.innerHTML = `
                 <td class="px-4 py-3">
-                    <input type="text" placeholder="Masukkan nama anak..." class="child-name-input w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 text-sm font-normal shadow-sm" />
+                    <input type="text" placeholder="Masukkan nama anak..." class="child-name-input w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 text-sm font-normal shadow-sm ${isRowApproved ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}" ${isRowApproved ? 'disabled' : ''} />
                 </td>
                 <td class="px-4 py-3">
-                    <select class="tahun-ajaran-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal">
+                    <select class="tahun-ajaran-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal text-gray-500 cursor-not-allowed" disabled>
                         <option value="2025/2026">2025/2026</option>
-                        <option value="2024/2025">2024/2025</option>
                         <option value="2026/2027">2026/2027</option>
+                        <option value="2027/2028">2027/2028</option>
                     </select>
                 </td>
                 <td class="px-4 py-3">
-                    <select onchange="updateRowNominal('${rowId}')" class="jenjang-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal">
+                    <select onchange="updateRowNominal('${rowId}')" class="jenjang-select form-select w-full rounded border-gray-300 dark:border-gray-600 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal ${isRowApproved ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-gray-800'}" ${isRowApproved ? 'disabled' : ''}>
                         <option value="" disabled selected>Jenjang</option>
                         <option value="sd">SD</option>
                         <option value="smp">SMP</option>
                         <option value="sma">SMA/SMK</option>
-
                     </select>
                 </td>
                 <td class="px-4 py-3">
-                    <select class="semester-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal">
+                    <select class="semester-select form-select w-full rounded border-gray-300 dark:border-gray-600 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal ${isRowApproved ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-gray-800'}" ${isRowApproved ? 'disabled' : ''}>
                         <option value="" disabled selected>Semester</option>
                         <option value="ganjil">Ganjil</option>
                         <option value="genap">Genap</option>
                     </select>
                 </td>
                 <td class="px-4 py-3">
-                    <select onchange="updateRowNominal('${rowId}')" class="peringkat-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal">
+                    <select onchange="updateRowNominal('${rowId}')" class="peringkat-select form-select w-full rounded border-gray-300 dark:border-gray-600 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal ${isRowApproved ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-gray-800'}" ${isRowApproved ? 'disabled' : ''}>
                         <option value="" disabled selected>Peringkat</option>
                         <option value="1">Peringkat 1</option>
                         <option value="2">Peringkat 2</option>
@@ -251,16 +276,81 @@
                     <span class="row-nominal font-bold text-gray-900 dark:text-white" data-amount="0">Rp 0</span>
                 </td>
                 <td class="px-4 py-3 text-center">
-                    <button type="button" onclick="deleteChildRow('${rowId}')" class="text-red-500 hover:text-red-700 transition-colors">
-                        <span class="material-symbols-outlined text-[20px]">delete</span>
-                    </button>
+                    ${isRowApproved ? `
+                        <span class="material-symbols-outlined text-gray-400 cursor-not-allowed" title="Approved (LOCKED)">lock</span>
+                    ` : `
+                        <button type="button" onclick="deleteChildRow('${rowId}')" class="text-red-500 hover:text-red-700 transition-colors">
+                            <span class="material-symbols-outlined text-[20px]">delete</span>
+                        </button>
+                    `}
                 </td>
             `;
             
             tbody.appendChild(tr);
+
+            // Build dynamic display inside upload boxes
+            let raporUploadHtml = '';
+            let rankingUploadHtml = '';
+            if (mode === 'edit') {
+                if (isRaporApproved) {
+                    raporUploadHtml = `
+                        <div class="flex items-center gap-2 text-[#006837] dark:text-emerald-400 font-semibold">
+                            <span class="material-symbols-outlined text-xl">check_circle</span>
+                            <span>Approved (LOCKED)</span>
+                        </div>
+                    `;
+                } else if (raporNote) {
+                    raporUploadHtml = `
+                        <div class="flex flex-col items-center justify-center text-amber-600 dark:text-amber-400 font-semibold text-center">
+                            <span class="material-symbols-outlined text-3xl mb-1">warning</span>
+                            <span class="text-xs">dokumen_terlampir_koreksi.pdf</span>
+                            <span class="text-[10px] text-gray-500 font-normal">Klik untuk upload ulang</span>
+                        </div>
+                    `;
+                } else {
+                    raporUploadHtml = `
+                        <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold">
+                            <span class="material-symbols-outlined text-xl">check_circle</span>
+                            <span>dokumen_beasiswa_terlampir.pdf</span>
+                        </div>
+                    `;
+                }
+
+                if (isRankingApproved) {
+                    rankingUploadHtml = `
+                        <div class="flex items-center gap-2 text-[#006837] dark:text-emerald-400 font-semibold">
+                            <span class="material-symbols-outlined text-xl">check_circle</span>
+                            <span>Approved (LOCKED)</span>
+                        </div>
+                    `;
+                } else if (rankingNote) {
+                    rankingUploadHtml = `
+                        <div class="flex flex-col items-center justify-center text-amber-600 dark:text-amber-400 font-semibold text-center">
+                            <span class="material-symbols-outlined text-3xl mb-1">warning</span>
+                            <span class="text-xs">dokumen_terlampir_koreksi.pdf</span>
+                            <span class="text-[10px] text-gray-500 font-normal">Klik untuk upload ulang</span>
+                        </div>
+                    `;
+                } else {
+                    rankingUploadHtml = `
+                        <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold">
+                            <span class="material-symbols-outlined text-xl">check_circle</span>
+                            <span>dokumen_beasiswa_terlampir.pdf</span>
+                        </div>
+                    `;
+                }
+            } else {
+                raporUploadHtml = `
+                    <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-1 text-2xl transition-colors">cloud_upload</span>
+                    <p class="mb-1 text-xs text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span></p>
+                `;
+                rankingUploadHtml = `
+                    <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-1 text-2xl transition-colors">cloud_upload</span>
+                    <p class="mb-1 text-xs text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span></p>
+                `;
+            }
             
             // Create corresponding document upload section as a table row
-            const childIndex = Math.floor(tbody.children.length / 2) + 1; // since we add 2 rows per child
             const docTr = document.createElement('tr');
             docTr.id = 'doc-' + rowId;
             docTr.className = "bg-blue-50/30 dark:bg-blue-900/10 border-b-2 border-gray-200 dark:border-gray-700";
@@ -271,36 +361,40 @@
                             <!-- Rapor -->
                             <div>
                                 <span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block mb-2">Fotocopy Rapor Legalisir <span class="text-red-500">*</span></span>
-                                <div class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green">
+                                <div class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed ${isRaporApproved ? 'border-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10 cursor-not-allowed' : 'border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green'} rounded-lg transition-colors group">
                                     <div class="flex flex-col items-center justify-center pt-4 pb-5 upload-indicator">
-                                        <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-1 text-2xl transition-colors">cloud_upload</span>
-                                        <p class="mb-1 text-xs text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span></p>
+                                        ${raporUploadHtml}
                                     </div>
-                                    <input class="hidden" type="file"/>
+                                    <input class="hidden" type="file" ${isRaporApproved ? 'disabled' : ''}/>
                                 </div>
+                                ${raporNote ? `
+                                    <div class="mt-2 p-2 bg-amber-50 border border-amber-250 text-amber-900 text-xs rounded shadow-sm text-left">
+                                        <span class="font-bold text-amber-700 block mb-0.5">Catatan Koreksi Rapor:</span>
+                                        <span>${raporNote}</span>
+                                    </div>
+                                ` : ''}
                             </div>
                             <!-- Ranking -->
                             <div>
                                 <span class="text-[#111418] dark:text-gray-200 text-sm font-semibold block mb-2">Surat Keterangan Ranking <span class="text-red-500">*</span></span>
-                                <div class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green">
+                                <div class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed ${isRankingApproved ? 'border-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10 cursor-not-allowed' : 'border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group hover:border-avian-green'} rounded-lg transition-colors group">
                                     <div class="flex flex-col items-center justify-center pt-4 pb-5 upload-indicator">
-                                        <span class="material-symbols-outlined text-gray-400 group-hover:text-avian-green mb-1 text-2xl transition-colors">cloud_upload</span>
-                                        <p class="mb-1 text-xs text-gray-500 dark:text-gray-400 text-center"><span class="font-bold text-gray-700 dark:text-gray-300">Klik untuk upload</span></p>
+                                        ${rankingUploadHtml}
                                     </div>
-                                    <input class="hidden" type="file"/>
+                                    <input class="hidden" type="file" ${isRankingApproved ? 'disabled' : ''}/>
                                 </div>
+                                ${rankingNote ? `
+                                    <div class="mt-2 p-2 bg-amber-50 border border-amber-250 text-amber-900 text-xs rounded shadow-sm text-left">
+                                        <span class="font-bold text-amber-700 block mb-0.5">Catatan Koreksi Surat Keterangan Ranking:</span>
+                                        <span>${rankingNote}</span>
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
                 </td>
             `;
             tbody.appendChild(docTr);
-            
-            
-            // Trigger it once if initial data is present
-            if(initialData && initialData.nama) {
-                // name Display logic removed as per user request
-            }
             
             if (initialData) {
                 const nameInput = tr.querySelector('.child-name-input');
@@ -311,13 +405,22 @@
                 
                 nameInput.value = initialData.nama || '';
                 if (initialData.tahunAjaran) {
-                    tahunAjaranEl.value = initialData.tahunAjaran;
+                    const topTahunSelect = document.getElementById('tahun-pengajuan');
+                    if (topTahunSelect) {
+                        topTahunSelect.value = initialData.tahunAjaran;
+                    }
                 }
-                jenjangEl.value = initialData.jenjang;
-                semesterEl.value = initialData.semester;
+                tahunAjaranEl.value = document.getElementById('tahun-pengajuan').value;
+                jenjangEl.value = initialData.jenjang.toLowerCase();
+                semesterEl.value = initialData.semester.toLowerCase();
                 peringkatEl.value = initialData.peringkat;
                 
                 updateRowNominal(rowId);
+            } else {
+                const tahunAjaranEl = tr.querySelector('.tahun-ajaran-select');
+                if (tahunAjaranEl) {
+                    tahunAjaranEl.value = selectedTahun;
+                }
             }
         }
 
@@ -454,6 +557,45 @@
             const params = new URLSearchParams(window.location.search);
             const mode = params.get('mode') || 'add';
             const entryId = params.get('entryId');
+            const storedEntries = getStoredEntries();
+
+            let verificationState = null;
+            if (mode === 'edit' && entryId) {
+                const existing = storedEntries.find(item => item.id === entryId);
+                if (existing) {
+                    verificationState = existing.verificationState;
+                    if (verificationState) {
+                        verificationState.overall = 'pending';
+                        if (verificationState.docs) {
+                            if (verificationState.docs.kk === 'correction') {
+                                verificationState.docs.kk = 'pending';
+                                verificationState.docs.kkNote = '';
+                            }
+                            if (verificationState.docs.raport === 'correction') {
+                                verificationState.docs.raport = 'pending';
+                                verificationState.docs.raportNote = '';
+                            }
+                            if (verificationState.docs.ranking === 'correction') {
+                                verificationState.docs.ranking = 'pending';
+                                verificationState.docs.rankingNote = '';
+                            }
+                        }
+                        if (verificationState.childDocs) {
+                            Object.keys(verificationState.childDocs).forEach(childIdx => {
+                                const cState = verificationState.childDocs[childIdx];
+                                if (cState.raport === 'correction') {
+                                    cState.raport = 'pending';
+                                    cState.raportNote = '';
+                                }
+                                if (cState.ranking === 'correction') {
+                                    cState.ranking = 'pending';
+                                    cState.rankingNote = '';
+                                }
+                            });
+                        }
+                    }
+                }
+            }
 
             const newEntry = {
                 id: mode === 'edit' && entryId ? entryId : generateEntryId(),
@@ -461,6 +603,8 @@
                 nik: document.getElementById('nik').value,
                 karyawan: document.getElementById('karyawan').value,
                 bagian: document.getElementById('bagian').value,
+                site: document.getElementById('site').value,
+                tahunAjaran: document.getElementById('tahun-pengajuan').value,
                 children: children,
                 anak: children.length > 1 ? `${children[0]?.nama || ''} & ${children.length - 1} lainnya` : (children[0]?.nama || ''),
                 peringkat: children[0]?.peringkat || '',
@@ -468,10 +612,10 @@
                 jenjang: children[0]?.jenjang || '',
                 jumlah: totalAmount,
                 status: 'On Process (Helmi Salampessy)',
-                statusTip: ''
+                statusTip: '',
+                verificationState: verificationState
             };
 
-            const storedEntries = getStoredEntries();
             if (mode === 'edit' && entryId) {
                 const editedIndex = storedEntries.findIndex(item => item.id === entryId);
                 if (editedIndex >= 0) {
@@ -506,60 +650,123 @@
             
             if (params.get('nik')) nik = params.get('nik');
             if (params.get('karyawan')) karyawan = params.get('karyawan');
-            if (params.get('bagian')) bagian = params.get('bagian');
+            if (params.get('bagian')) {
+                bagian = params.get('bagian');
+                if (bagian === 'IT') bagian = 'IT Department';
+            }
             
-            document.getElementById('nik').value = nik;
-            document.getElementById('karyawan').value = karyawan;
-            document.getElementById('bagian').value = bagian;
-
-            // Initialize Employee Searchable Dropdown
             const karyawanList = document.getElementById('karyawan-list');
             const karyawanInput = document.getElementById('karyawan');
             const nikInput = document.getElementById('nik');
             const bagianInput = document.getElementById('bagian');
+            
+            if (bagianInput) bagianInput.value = bagian;
+            if (karyawanInput) karyawanInput.value = karyawan;
+            if (nikInput) nikInput.value = nik;
 
-            if (karyawanList) {
-                employeeData.forEach(emp => {
+            function updateEmployeeDatalist() {
+                if (!karyawanList) return;
+                karyawanList.innerHTML = '';
+                const selectedDept = bagianInput ? bagianInput.value : '';
+                const filtered = employeeData.filter(emp => !selectedDept || emp.dept === selectedDept);
+                filtered.forEach(emp => {
                     const option = document.createElement('option');
                     option.value = emp.name;
                     karyawanList.appendChild(option);
                 });
             }
 
+            if (bagianInput) {
+                bagianInput.addEventListener('change', () => {
+                    if (karyawanInput) karyawanInput.value = "";
+                    if (nikInput) nikInput.value = "";
+                    updateEmployeeDatalist();
+                });
+            }
+
             if (karyawanInput) {
                 karyawanInput.addEventListener('input', (e) => {
                     const selectedName = e.target.value.trim().toUpperCase();
-                    const found = employeeData.find(emp => emp.name.toUpperCase() === selectedName);
+                    const selectedDept = bagianInput ? bagianInput.value : '';
+                    const found = employeeData.find(emp => emp.name.toUpperCase() === selectedName && (!selectedDept || emp.dept === selectedDept));
                     if (found) {
                         nikInput.value = found.nik;
-                        bagianInput.value = found.dept;
+                        if (bagianInput && !bagianInput.value) {
+                            bagianInput.value = found.dept;
+                            updateEmployeeDatalist();
+                        }
                     } else {
                         nikInput.value = "";
-                        bagianInput.value = "";
                     }
                 });
             }
+
+            updateEmployeeDatalist();
             
             // Site and Tahun Pengajuan
-            document.getElementById('site').value = params.get('site') || 'AA PUSAT';
-            document.getElementById('tahun-pengajuan').value = params.get('tahun') || '2025';
+            if (document.getElementById('site')) {
+                document.getElementById('site').value = params.get('site') || 'AA PUSAT';
+            }
+            const topTahunSelect = document.getElementById('tahun-pengajuan');
+            if (topTahunSelect) {
+                const paramTahun = params.get('tahun');
+                if (paramTahun) {
+                    if (paramTahun === '2025') {
+                        topTahunSelect.value = '2025/2026';
+                    } else {
+                        topTahunSelect.value = paramTahun;
+                    }
+                } else {
+                    topTahunSelect.value = '2025/2026';
+                }
+                
+                topTahunSelect.addEventListener('change', (e) => {
+                    const nextVal = e.target.value;
+                    document.querySelectorAll('.tahun-ajaran-select').forEach(sel => {
+                        sel.value = nextVal;
+                    });
+                });
+            }
             
             if (mode === 'edit') {
                 document.getElementById('form-title').innerText = "Edit Pengajuan Tunjangan Beasiswa Anak";
                 document.getElementById('form-desc').innerText = "Silahkan perbarui data di bawah ini untuk pengajuan tunjangan beasiswa.";
                 document.getElementById('submit-btn').innerText = "Simpan Perubahan";
                 
-                // Prepopulate child from url parameters
-                if (params.get('anak')) {
+                const entryId = params.get('entryId');
+                const storedEntries = getStoredEntries();
+                const existingEntry = storedEntries.find(item => item.id === entryId);
+                
+                if (existingEntry) {
+                    document.getElementById('nik').value = existingEntry.nik || '';
+                    document.getElementById('karyawan').value = existingEntry.karyawan || '';
+                    document.getElementById('bagian').value = existingEntry.bagian || '';
+                    if (document.getElementById('site')) {
+                        document.getElementById('site').value = existingEntry.site || 'AA PUSAT';
+                    }
+                    if (topTahunSelect) {
+                        topTahunSelect.value = existingEntry.tahunAjaran || '2025/2026';
+                    }
+                    
+                    document.getElementById('children-table-body').innerHTML = '';
+                    if (existingEntry.children && existingEntry.children.length > 0) {
+                        existingEntry.children.forEach((child, childIdx) => {
+                            addChildRow(child, childIdx);
+                        });
+                    } else {
+                        addChildRow();
+                    }
+                    updateEmployeeDatalist();
+                } else if (params.get('anak')) {
                     const jenjangParam = params.get('jenjang') ? params.get('jenjang').toLowerCase() : '';
                     const mappedJenjang = (jenjangParam === 'kuliah' || jenjangParam === 's1') ? 'sma' : jenjangParam;
                     addChildRow({
                         nama: params.get('anak'),
-                        tahunAjaran: '2025/2026', // defaults in edit mode
+                        tahunAjaran: params.get('tahun') || '2025/2026',
                         jenjang: mappedJenjang,
                         semester: params.get('semester') ? params.get('semester').toLowerCase() : '',
                         peringkat: params.get('peringkat') || ''
-                    });
+                    }, 0);
                 } else {
                     addChildRow();
                 }
@@ -567,16 +774,7 @@
                 // Set default checked for edit mode
                 document.getElementById('pernyataan').checked = true;
                 
-                // Mock uploaded documents in Edit Mode
-                const mockFiles = document.querySelectorAll('.upload-indicator');
-                mockFiles.forEach(file => {
-                    file.innerHTML = `
-                        <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
-                            <span class="material-symbols-outlined text-xl">check_circle</span>
-                            <span>dokumen_beasiswa_terlampir.pdf</span>
-                        </div>
-                    `;
-                });
+
             } else {
                 document.getElementById('form-title').innerText = "Formulir Pengajuan Tunjangan Beasiswa Anak";
                 document.getElementById('form-desc').innerText = "Silahkan lengkapi data di bawah ini untuk mengajukan tunjangan beasiswa.";
@@ -633,6 +831,10 @@
 <span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
 <span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
 </a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="report.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">description</span>
+<span class="text-sm font-medium sidebar-text">Report</span>
+</a>
 </nav>
 </div>
 </aside>
@@ -665,8 +867,15 @@
 </div>
 </label>
 <label class="flex flex-col gap-1.5">
-<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Tahun Pengajuan <span class="text-red-500">*</span></span>
-<input id="tahun-pengajuan" class="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2.5 text-sm font-normal shadow-sm" type="number" min="2020" max="2035" value="2025"/>
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Tahun Ajaran <span class="text-red-500">*</span></span>
+<div class="relative">
+<select id="tahun-pengajuan" class="w-full appearance-none rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2.5 text-sm font-normal pr-10 shadow-sm">
+<option value="2025/2026">2025/2026</option>
+<option value="2026/2027">2026/2027</option>
+<option value="2027/2028">2027/2028</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 text-lg">expand_more</span>
+</div>
 </label>
 </div>
 
@@ -678,10 +887,6 @@
                                         Data Karyawan
                                     </h2>
 <div class="flex items-center gap-2">
-<button type="button" onclick="viewKKModal()" class="flex items-center gap-1.5 px-3 py-1.5 bg-avian-green/10 text-avian-green hover:bg-avian-green hover:text-white rounded font-semibold text-xs transition-colors shadow-sm whitespace-nowrap">
-<span class="material-symbols-outlined text-[16px]">visibility</span>
-                                            View KK
-                                        </button>
 <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded dark:bg-blue-200 dark:text-blue-800">Otomatis Terisi</span>
 </div>
 </div>
@@ -696,8 +901,18 @@
 <datalist id="karyawan-list"></datalist>
 </label>
 <label class="flex flex-col gap-1.5 md:col-span-2">
-<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Bagian / Departemen</span>
-<input id="bagian" class="w-full rounded border-gray-200 bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-not-allowed focus:ring-0 p-2.5 text-sm font-medium" readonly="" type="text" placeholder="Terisi otomatis"/>
+<span class="text-[#111418] dark:text-gray-200 text-sm font-semibold">Bagian / Departemen <span class="text-red-500">*</span></span>
+<div class="relative">
+<select id="bagian" class="w-full appearance-none rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2.5 text-sm font-medium pr-10 shadow-sm">
+<option value="" disabled selected>Pilih Departemen</option>
+<option value="Production">Production</option>
+<option value="Finance">Finance</option>
+<option value="HR">HR</option>
+<option value="Marketing">Marketing</option>
+<option value="IT Department">IT Department</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 text-lg">expand_more</span>
+</div>
 </label>
 </div>
 </div>

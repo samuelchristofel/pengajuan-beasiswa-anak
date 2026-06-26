@@ -145,6 +145,10 @@
 <span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
 <span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
 </a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="report.html">
+<span class="material-symbols-outlined text-gray-300 text-[20px]">description</span>
+<span class="text-sm font-medium sidebar-text">Report</span>
+</a>
 </nav>
 </div>
 </aside>
@@ -208,6 +212,7 @@
 <th class="px-2 py-3 text-[11px] font-bold text-black uppercase tracking-wide border-b border-gray-300 border-r text-center w-20 whitespace-nowrap">Jenjang</th>
 <th class="px-2 py-3 text-[11px] font-bold text-black uppercase tracking-wide border-b border-gray-300 border-r text-right whitespace-nowrap min-w-[90px] w-24">Jumlah (Rp)</th>
 <th class="px-2 py-3 text-[11px] font-bold text-black uppercase tracking-wide border-b border-gray-300 border-r text-center min-w-[90px] w-28 whitespace-nowrap">Status Form</th>
+<th class="px-2 py-3 text-[11px] font-bold text-black uppercase tracking-wide border-b border-gray-300 border-r text-center min-w-[70px] w-20 whitespace-nowrap">Edit</th>
 <th class="px-2 py-3 text-[11px] font-bold text-black uppercase tracking-wide border-b border-gray-300 text-center sticky right-0 bg-gray-100 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] z-20 w-24">Action</th>
 </tr>
 </thead>
@@ -402,8 +407,14 @@
                 const haystack = [entry.nik, entry.karyawan, entry.bagian, entry.anak, entry.peringkat, entry.semester, entry.jenjang, entry.status].join(' ').toLowerCase();
                 if (!haystack.includes(searchValue)) return false;
             }
-            if (filters.bagian && entry.bagian !== filters.bagian) return false;
-            if (filters.jenjang && entry.jenjang !== filters.jenjang) return false;
+            if (filters.bagian) {
+                let fBagian = filters.bagian;
+                let eBagian = entry.bagian;
+                if (fBagian === 'IT') fBagian = 'IT Department';
+                if (eBagian === 'IT') eBagian = 'IT Department';
+                if (eBagian !== fBagian) return false;
+            }
+            if (filters.jenjang && String(entry.jenjang).toUpperCase() !== String(filters.jenjang).toUpperCase()) return false;
             if (filters.status) {
                 if (filters.status === 'Koreksi') {
                     if (!entry.status.toLowerCase().includes('koreksi')) return false;
@@ -466,14 +477,22 @@
 
         let html = '';
         if (pageItems.length === 0) {
-            html = `<tr><td colspan="13" class="px-2 py-6 text-center text-gray-500">Tidak ada data ditemukan.</td></tr>`;
+            html = `<tr><td colspan="14" class="px-2 py-6 text-center text-gray-500">Tidak ada data ditemukan.</td></tr>`;
         } else {
             pageItems.forEach((entry, index) => {
                 const actionButton = entry.status === 'Done'
                     ? `<button type="button" title="Download / Export" class="inline-flex items-center justify-center p-1.5 rounded text-avian-green hover:bg-avian-green/10 transition-colors">
-                            <span class="material-symbols-outlined text-[18px]">file_download</span>
-                       </button>`
+                             <span class="material-symbols-outlined text-[18px]">file_download</span>
+                        </button>`
                     : '';
+                const isCorrection = entry.status.toLowerCase().includes('koreksi');
+                const editButton = isCorrection
+                    ? `<button type="button" onclick="window.location.href='form.html?mode=edit&entryId=${entry.id}&nik=${entry.nik}&karyawan=${entry.karyawan}&bagian=${entry.bagian}&site=${entry.parentEntry ? entry.parentEntry.site || 'AA PUSAT' : 'AA PUSAT'}&tahun=${entry.parentEntry ? entry.parentEntry.tahunAjaran || '2025/2026' : '2025/2026'}&anak=${entry.anak}&peringkat=${entry.peringkat}&semester=${entry.semester}&jenjang=${entry.jenjang}'" class="inline-flex items-center justify-center px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-gray-900 rounded text-[10px] font-bold transition-colors uppercase tracking-wide shadow-sm">
+                            Edit
+                       </button>`
+                    : `<button type="button" disabled class="inline-flex items-center justify-center px-2.5 py-1 bg-gray-200 text-gray-400 rounded text-[10px] font-bold uppercase tracking-wide cursor-not-allowed opacity-50">
+                            Edit
+                       </button>`;
                 html += `
                     <tr class="hover:bg-gray-50 transition-colors group">
                         <td class="px-2 py-3 text-gray-800 text-center border-r border-gray-200">${startIndex + index + 1}</td>
@@ -492,6 +511,7 @@
                         <td class="px-2 py-3 text-gray-600 text-center border-r border-gray-200">${entry.jenjang}</td>
                         <td class="px-2 py-3 font-medium text-gray-800 text-right border-r border-gray-200 whitespace-nowrap">${formatCurrency(entry.jumlah)}</td>
                         <td class="px-2 py-3 text-center border-r border-gray-200 whitespace-nowrap">${getStatusBadge(entry)}</td>
+                        <td class="px-2 py-3 text-center border-r border-gray-200 whitespace-nowrap">${editButton}</td>
                         <td class="px-2 py-3 text-center sticky right-0 bg-white shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)] group-hover:bg-gray-50 z-10">
                             <div class="flex items-center justify-center gap-1 min-h-[18px]">${actionButton}</div>
                         </td>
@@ -518,8 +538,89 @@
         renderTable();
     }
 
+    function getFlattenedEntries(rawEntries) {
+        const flattened = [];
+        rawEntries.forEach(entry => {
+            if (entry.children && entry.children.length > 0) {
+                entry.children.forEach((child, childIdx) => {
+                    let childStatus = entry.status;
+                    let childStatusTip = entry.statusTip || '';
+                    
+                    const state = entry.verificationState;
+                    if (state) {
+                        const childState = (state.childDocs && state.childDocs[childIdx]) ? state.childDocs[childIdx] : (state.docs || {});
+                        if (childState) {
+                            const raporStatus = childState.raport || 'pending';
+                            const rankingStatus = childState.ranking || 'pending';
+                            
+                            if (raporStatus === 'correction' || rankingStatus === 'correction') {
+                                childStatus = 'Koreksi (Helmi Salampessy)';
+                                const tips = [];
+                                if (raporStatus === 'correction') tips.push('KOREKSI RAPOR');
+                                if (rankingStatus === 'correction') tips.push('KOREKSI SURAT RANKING');
+                                childStatusTip = tips.join(', ');
+                            } else if (raporStatus === 'approved' && rankingStatus === 'approved') {
+                                if (entry.status === 'Done') {
+                                    childStatus = 'Done';
+                                } else {
+                                    childStatus = 'On Process (Serafin Sutanto)';
+                                }
+                                childStatusTip = '';
+                            } else {
+                                if (entry.status.startsWith('Rejected')) {
+                                    childStatus = 'Rejected (Helmi Salampessy)';
+                                } else if (entry.status === 'On Process (Serafin Sutanto)' || entry.status === 'Done') {
+                                    childStatus = entry.status;
+                                } else {
+                                    childStatus = 'On Process (Helmi Salampessy)';
+                                }
+                            }
+                        }
+                    }
+                    
+                    flattened.push({
+                        id: entry.id,
+                        tanggal: entry.tanggal,
+                        nik: entry.nik,
+                        karyawan: entry.karyawan,
+                        bagian: entry.bagian,
+                        status: childStatus,
+                        statusTip: childStatusTip,
+                        verificationState: entry.verificationState,
+                        anak: child.nama,
+                        peringkat: child.peringkat,
+                        semester: child.semester,
+                        jenjang: child.jenjang,
+                        jumlah: child.nominal,
+                        parentEntry: entry,
+                        childIndex: childIdx
+                    });
+                });
+            } else {
+                flattened.push({
+                    id: entry.id,
+                    tanggal: entry.tanggal,
+                    nik: entry.nik,
+                    karyawan: entry.karyawan,
+                    bagian: entry.bagian,
+                    status: entry.status,
+                    statusTip: entry.statusTip || '',
+                    verificationState: entry.verificationState,
+                    anak: entry.anak,
+                    peringkat: entry.peringkat,
+                    semester: entry.semester,
+                    jenjang: entry.jenjang,
+                    jumlah: entry.jumlah,
+                    parentEntry: entry,
+                    childIndex: 0
+                });
+            }
+        });
+        return flattened;
+    }
+
     function initializeIndexPage() {
-        entries = getStoredEntries();
+        entries = getFlattenedEntries(getStoredEntries());
         pageSize = Number(document.getElementById('page-size-select')?.value) || 10;
 
         document.getElementById('page-size-select')?.addEventListener('change', updatePageSize);
