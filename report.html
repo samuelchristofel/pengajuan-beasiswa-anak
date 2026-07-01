@@ -113,6 +113,41 @@
             }
         }
 
+        function getExportMode() {
+            const params = new URLSearchParams(window.location.search);
+            const mode = params.get('format');
+            if (mode === 'excel') return 'excel';
+            if (mode === 'pdf') return 'pdf';
+            return 'all';
+        }
+
+        function renderExportControls() {
+            const container = document.getElementById('export-controls');
+            if (!container) return;
+
+            const mode = getExportMode();
+            if (mode === 'excel') {
+                container.innerHTML = `
+                    <button onclick="exportToExcel()" class="px-4 py-1.5 bg-avian-green text-white rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[18px]">table_chart</span> Excel
+                    </button>`;
+            } else if (mode === 'pdf') {
+                container.innerHTML = `
+                    <button onclick="exportToPDF()" class="px-4 py-1.5 bg-avian-green text-white rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> PDF
+                    </button>`;
+            } else {
+                container.innerHTML = `
+                    <button onclick="exportToExcel()" class="px-4 py-1.5 hover:bg-[#334155] rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[18px]">table_chart</span> Excel
+                    </button>
+                    <div class="w-px h-6 bg-white/20"></div>
+                    <button onclick="exportToPDF()" class="px-4 py-1.5 hover:bg-[#334155] rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> PDF
+                    </button>`;
+            }
+        }
+
         function getStoredEntries() {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return [];
@@ -324,6 +359,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             entries = getFlattenedEntries(getStoredEntries());
             document.getElementById('search-input')?.addEventListener('input', updateSearchValue);
+            renderExportControls();
             renderTable();
         });
     </script>
@@ -373,10 +409,21 @@
 <span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
 <span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
 </a>
-<a class="flex items-center gap-3 px-4 py-3 bg-avian-green text-white border-l-4 border-white transition-colors whitespace-nowrap" href="report.html">
-<span class="material-symbols-outlined text-white text-[20px] fill-1">description</span>
-<span class="text-sm font-bold sidebar-text">Report</span>
-</a>
+<div class="px-4 py-2">
+    <details class="group">
+        <summary class="flex items-center justify-between gap-3 px-4 py-3 rounded-md hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap cursor-pointer list-none">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-gray-300 text-[20px]">description</span>
+                <span class="text-sm font-medium sidebar-text">Report</span>
+            </div>
+            <span class="material-symbols-outlined text-[16px] transition-transform group-open:rotate-180">expand_more</span>
+        </summary>
+        <div class="mt-1 ml-6 flex flex-col gap-1">
+            <a class="px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-avian-hover hover:text-white transition-colors" href="report.html?format=excel">Excel</a>
+            <a class="px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-avian-hover hover:text-white transition-colors" href="report.html?format=pdf">PDF</a>
+        </div>
+    </details>
+</div>
 </nav>
 </div>
 </aside>
@@ -408,15 +455,7 @@
         </div>
         
         <!-- Export Pill Buttons matching user mockup style -->
-        <div class="flex items-center gap-1 bg-[#475569] text-white p-1 rounded-lg shadow-sm">
-            <button onclick="exportToExcel()" class="px-4 py-1.5 hover:bg-[#334155] rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[18px]">table_chart</span> Excel
-            </button>
-            <div class="w-px h-6 bg-white/20"></div>
-            <button onclick="exportToPDF()" class="px-4 py-1.5 hover:bg-[#334155] rounded-md text-sm font-semibold transition-colors flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> PDF
-            </button>
-        </div>
+        <div id="export-controls" class="flex items-center gap-1 bg-[#475569] text-white p-1 rounded-lg shadow-sm"></div>
     </div>
 
     <!-- Table Card -->
