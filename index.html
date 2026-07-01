@@ -145,10 +145,21 @@
 <span class="material-symbols-outlined text-gray-300 text-[20px]">history_edu</span>
 <span class="text-sm font-medium sidebar-text">Master Beasiswa</span>
 </a>
-<a class="flex items-center gap-3 px-4 py-3 hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap" href="report.html">
-<span class="material-symbols-outlined text-gray-300 text-[20px]">description</span>
-<span class="text-sm font-medium sidebar-text">Report</span>
-</a>
+<div class="px-4 py-2">
+    <details class="group">
+        <summary class="flex items-center justify-between gap-3 px-4 py-3 rounded-md hover:bg-avian-hover text-gray-300 transition-colors whitespace-nowrap cursor-pointer list-none">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-gray-300 text-[20px]">description</span>
+                <span class="text-sm font-medium sidebar-text">Report</span>
+            </div>
+            <span class="material-symbols-outlined text-[16px] transition-transform group-open:rotate-180">expand_more</span>
+        </summary>
+        <div class="mt-1 ml-6 flex flex-col gap-1">
+            <a class="px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-avian-hover hover:text-white transition-colors" href="report.html?format=excel">Excel</a>
+            <a class="px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-avian-hover hover:text-white transition-colors" href="report.html?format=pdf">PDF</a>
+        </div>
+    </details>
+</div>
 </nav>
 </div>
 </aside>
