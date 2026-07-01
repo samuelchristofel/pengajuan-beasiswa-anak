@@ -202,6 +202,75 @@
             document.getElementById('kk-modal').classList.add('hidden');
         }
 
+        function populateChildSelect(selectEl, selectedValue = '') {
+            const nik = document.getElementById('nik').value;
+            const currentVal = selectedValue || selectEl.value;
+            
+            selectEl.innerHTML = '';
+            
+            if (!nik) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Pilih karyawan terlebih dahulu';
+                opt.disabled = true;
+                opt.selected = true;
+                selectEl.appendChild(opt);
+                return;
+            }
+            
+            const family = kkData[nik];
+            if (!family || !family.members) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Data KK tidak ditemukan';
+                opt.disabled = true;
+                opt.selected = true;
+                selectEl.appendChild(opt);
+                return;
+            }
+            
+            const children = family.members.filter(m => m.hubungan === 'ANAK');
+            
+            if (children.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Tidak ada data anak di KK';
+                opt.disabled = true;
+                opt.selected = true;
+                selectEl.appendChild(opt);
+                return;
+            }
+            
+            const placeholderOpt = document.createElement('option');
+            placeholderOpt.value = '';
+            placeholderOpt.textContent = 'Pilih nama anak...';
+            placeholderOpt.disabled = true;
+            if (!currentVal) placeholderOpt.selected = true;
+            selectEl.appendChild(placeholderOpt);
+            
+            let hasSelected = false;
+            children.forEach(child => {
+                const opt = document.createElement('option');
+                opt.value = child.nama;
+                opt.textContent = child.nama;
+                if (child.nama === currentVal) {
+                    opt.selected = true;
+                    hasSelected = true;
+                }
+                selectEl.appendChild(opt);
+            });
+
+            if (currentVal && !hasSelected) {
+                placeholderOpt.selected = true;
+            }
+        }
+
+        function updateAllChildSelects() {
+            document.querySelectorAll('.child-name-input').forEach(selectEl => {
+                populateChildSelect(selectEl);
+            });
+        }
+
         function addChildRow(initialData = null, childIdx = null) {
             const tbody = document.getElementById('children-table-body');
             const rowId = 'row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
@@ -240,7 +309,9 @@
 
             tr.innerHTML = `
                 <td class="px-4 py-3">
-                    <input type="text" placeholder="Masukkan nama anak..." class="child-name-input w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 text-sm font-normal shadow-sm ${isRowApproved ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}" ${isRowApproved ? 'disabled' : ''} />
+                    <select class="child-name-input form-select w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-[#111418] dark:text-white focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 text-sm font-normal shadow-sm ${isRowApproved ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}" ${isRowApproved ? 'disabled' : ''}>
+                        <option value="" disabled selected>Pilih nama anak...</option>
+                    </select>
                 </td>
                 <td class="px-4 py-3">
                     <select class="tahun-ajaran-select form-select w-full rounded border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-sm focus:ring-1 focus:ring-avian-green focus:border-avian-green p-2 shadow-sm font-normal text-gray-500 cursor-not-allowed" disabled>
@@ -396,14 +467,15 @@
             `;
             tbody.appendChild(docTr);
             
+            const nameInput = tr.querySelector('.child-name-input');
+            populateChildSelect(nameInput, initialData ? initialData.nama : '');
+            
             if (initialData) {
-                const nameInput = tr.querySelector('.child-name-input');
                 const tahunAjaranEl = tr.querySelector('.tahun-ajaran-select');
                 const jenjangEl = tr.querySelector('.jenjang-select');
                 const semesterEl = tr.querySelector('.semester-select');
                 const peringkatEl = tr.querySelector('.peringkat-select');
                 
-                nameInput.value = initialData.nama || '';
                 if (initialData.tahunAjaran) {
                     const topTahunSelect = document.getElementById('tahun-pengajuan');
                     if (topTahunSelect) {
@@ -681,6 +753,7 @@
                     if (karyawanInput) karyawanInput.value = "";
                     if (nikInput) nikInput.value = "";
                     updateEmployeeDatalist();
+                    updateAllChildSelects();
                 });
             }
 
@@ -698,6 +771,7 @@
                     } else {
                         nikInput.value = "";
                     }
+                    updateAllChildSelects();
                 });
             }
 
